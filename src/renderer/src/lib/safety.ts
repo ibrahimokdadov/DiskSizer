@@ -43,16 +43,32 @@ const SAFE_FOLDER_NAMES = new Set([
 ])
 
 const SAFE_EXTENSIONS = new Set([
-  'tmp',
-  'log',
-  'bak',
-  'cache',
-  'dmp',
-  'old',
-  'temp',
-  'crdownload',
-  'part',
+  // Throwaway
+  'tmp', 'log', 'bak', 'cache', 'dmp', 'old', 'temp', 'crdownload', 'part',
+  // Images
+  'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'tif', 'raw', 'cr2',
+  'nef', 'arw', 'heic', 'heif', 'ico', 'svg',
+  // Video
+  'mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', 'mpg', 'mpeg',
+  '3gp', 'ts', 'vob',
+  // Audio
+  'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus', 'aiff',
+  // Documents
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md',
+  'csv', 'rtf', 'odt', 'ods', 'odp', 'epub', 'mobi',
+  // Archives
+  'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'zst', 'iso',
 ])
+
+// User directory safe path segments — OS doesn't depend on any of this
+const SAFE_PATH_SEGMENTS = [
+  '\\documents\\',
+  '\\pictures\\',
+  '\\videos\\',
+  '\\music\\',
+  '\\downloads\\',
+  '\\desktop\\',
+]
 
 export function classifyNode(node: FileNode): SafetyLevel {
   const pathLower = node.path.replace(/\//g, '\\').toLowerCase()
@@ -70,7 +86,10 @@ export function classifyNode(node: FileNode): SafetyLevel {
   // Safe: known cache/temp folder names
   if (node.type === 'directory' && SAFE_FOLDER_NAMES.has(node.name.toLowerCase())) return 'safe'
 
-  // Safe: known throwaway extensions
+  // Safe: inside user's personal directories
+  if (SAFE_PATH_SEGMENTS.some(seg => pathLower.includes(seg))) return 'safe'
+
+  // Safe: known user file extensions (OS doesn't need these)
   if (node.type === 'file' && node.extension && SAFE_EXTENSIONS.has(node.extension.toLowerCase())) {
     return 'safe'
   }
