@@ -2,14 +2,14 @@ import type { FileNode } from '../types/scan'
 
 export type SafetyLevel = 'safe' | 'unsafe' | 'unknown'
 
-const UNSAFE_PATH_PREFIXES = [
-  'C:\\Windows',
-  'C:\\Program Files',
-  'C:\\Program Files (x86)',
-  'C:\\ProgramData',
-  'C:\\System Volume Information',
-  'C:\\Recovery',
-  'C:\\$Recycle.Bin',
+const SYSTEM_PATH_PATTERNS = [
+  ':\\windows',
+  ':\\program files',
+  ':\\program files (x86)',
+  ':\\programdata',
+  ':\\system volume information',
+  ':\\recovery',
+  ':\\$recycle.bin',
 ]
 
 const UNSAFE_FILENAMES = new Set([
@@ -17,7 +17,7 @@ const UNSAFE_FILENAMES = new Set([
   'hiberfil.sys',
   'swapfile.sys',
   'bootmgr',
-  'BOOTNXT',
+  'bootnxt',
 ])
 
 const SAFE_FOLDER_NAMES = new Set([
@@ -25,8 +25,6 @@ const SAFE_FOLDER_NAMES = new Set([
   '__pycache__',
   '.cache',
   'cache',
-  'Cache',
-  'Temp',
   'temp',
   'tmp',
   'logs',
@@ -38,12 +36,10 @@ const SAFE_FOLDER_NAMES = new Set([
   '.nuxt',
   'coverage',
   '.pytest_cache',
-  '__MACOSX',
   '.gradle',
   '.m2',
   'target',
   'build',
-  '.DS_Store',
 ])
 
 const SAFE_EXTENSIONS = new Set([
@@ -59,20 +55,20 @@ const SAFE_EXTENSIONS = new Set([
 ])
 
 export function classifyNode(node: FileNode): SafetyLevel {
-  const pathNorm = node.path.replace(/\//g, '\\')
+  const pathLower = node.path.replace(/\//g, '\\').toLowerCase()
 
-  // Unsafe: known system paths
-  for (const prefix of UNSAFE_PATH_PREFIXES) {
-    if (pathNorm.toLowerCase().startsWith(prefix.toLowerCase())) {
+  // Unsafe: known system paths (any drive letter)
+  for (const pattern of SYSTEM_PATH_PATTERNS) {
+    if (pathLower.slice(1).startsWith(pattern)) {
       return 'unsafe'
     }
   }
 
   // Unsafe: critical system filenames
-  if (UNSAFE_FILENAMES.has(node.name)) return 'unsafe'
+  if (UNSAFE_FILENAMES.has(node.name.toLowerCase())) return 'unsafe'
 
   // Safe: known cache/temp folder names
-  if (node.type === 'directory' && SAFE_FOLDER_NAMES.has(node.name)) return 'safe'
+  if (node.type === 'directory' && SAFE_FOLDER_NAMES.has(node.name.toLowerCase())) return 'safe'
 
   // Safe: known throwaway extensions
   if (node.type === 'file' && node.extension && SAFE_EXTENSIONS.has(node.extension.toLowerCase())) {
