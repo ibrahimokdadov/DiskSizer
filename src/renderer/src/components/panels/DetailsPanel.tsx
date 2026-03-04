@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Eye, FolderOpen, Trash2, Copy, File, Folder } from 'lucide-react'
+import { X, Eye, FolderOpen, Trash2, Copy, File, Folder, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react'
 import { useUIStore } from '../../store/ui-store'
 import { useFileActions } from '../../hooks/useFileActions'
 import { useScanStore } from '../../store/scan-store'
@@ -7,6 +7,8 @@ import { formatBytes, formatNumber } from '../../lib/format'
 import { getFileColor } from '../../lib/colors'
 import { getFileCategory } from '../../lib/colors'
 import { PreviewPanel } from './PreviewPanel'
+import { classifyNode, SAFETY_META } from '../../lib/safety'
+import type { FileNode } from '../../types/scan'
 
 export function DetailsPanel() {
   const selectedNode = useUIStore(s => s.selectedNode)
@@ -69,6 +71,9 @@ export function DetailsPanel() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-200 break-all">{selectedNode.name}</p>
             <p className="text-xs text-gray-500 capitalize">{category}</p>
+            <div className="mt-1">
+              <SafetyBadge node={selectedNode} />
+            </div>
           </div>
         </div>
 
@@ -170,5 +175,17 @@ function ActionButton({ icon, label, onClick, variant = 'default' }: {
       {icon}
       {label}
     </button>
+  )
+}
+
+function SafetyBadge({ node }: { node: FileNode }) {
+  const level = classifyNode(node)
+  const { label, color, bg } = SAFETY_META[level]
+  const Icon = level === 'safe' ? ShieldCheck : level === 'unsafe' ? ShieldAlert : ShieldQuestion
+  return (
+    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium ${color} ${bg}`}>
+      <Icon size={11} />
+      {label}
+    </div>
   )
 }
