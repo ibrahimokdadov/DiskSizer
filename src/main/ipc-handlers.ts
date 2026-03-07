@@ -1,6 +1,7 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { getDrives } from './drive-info'
+import { getDrives, getDriveMediaType } from './drive-info'
 import { fastScanner } from './scanner-fast'
+import { nativeScanner, nativeAddon } from './scanner-native'
 import { deleteItem, openInExplorer, getFilePreview } from './file-actions'
 
 export function registerIpcHandlers(): void {
@@ -21,10 +22,21 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('start-scan', async (event, dirPath: string) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window) throw new Error('No window')
+
+    // Use native scanner (no stat() per file) for HDDs when addon is available
+    if (nativeAddon) {
+      const driveLetter = require('path').parse(dirPath).root
+      const mediaType = await getDriveMediaType(driveLetter)
+      if (mediaType === 'HDD') {
+        return nativeScanner.scan(dirPath, window)
+      }
+    }
+
     return fastScanner.scan(dirPath, window)
   })
 
   ipcMain.handle('cancel-scan', async () => {
+    nativeScanner.cancel()
     fastScanner.cancel()
   })
 

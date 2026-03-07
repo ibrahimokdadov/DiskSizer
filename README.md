@@ -16,7 +16,7 @@ A fast Windows disk space analyzer. Visualize what's eating your disk with inter
 - **Right-click context menu** — open in Explorer, delete, preview file contents.
 - **Keyboard navigation** — `Enter` to drill in, `Esc` to navigate up.
 - **IMF-style scanner** — batch-64 architecture inspired by disk-based nearest-neighbor research. 1.18× faster on large trees, 1.92× faster on smaller directories, 73% less heap.
-- **HDD-aware concurrency** — auto-detects drive type via WMI; applies a 4-slot I/O semaphore on HDDs to prevent seek thrashing, runs unlimited parallel I/O on SSDs.
+- **HDD-aware native scanner** — auto-detects drive type via WMI; on HDDs uses a native C++ addon (`FindFirstFileExW`) that returns file sizes from directory entries directly — eliminating all per-file `stat()` syscalls. On SSDs uses the IMF-style scanner with unlimited parallelism.
 
 ---
 
@@ -37,8 +37,9 @@ A fast Windows disk space analyzer. Visualize what's eating your disk with inter
 
 ```bash
 npm install
+npm run build:native  # compile C++ addon (requires VS2019 Build Tools + Python)
 npm run dev           # launch in dev mode with hot-reload
-npm run build:win     # build Windows installer via electron-builder
+npm run build:win     # build Windows installer (includes native addon)
 ```
 
 ---
@@ -109,9 +110,19 @@ for (let i = 0; i < entries.length; i += 64) {
 ```
 
 **SSD:** no semaphore — random access is ~100× cheaper, parallelism wins.
-**HDD:** global 4-slot semaphore on all `readdir`/`stat` calls — keeps the disk head moving predictably instead of thrashing across random seek positions.
+**HDD:** routes to the native scanner (see below) — no `stat()` calls at all.
 
-Drive type is detected at scan start via PowerShell WMI (`Get-PhysicalDisk | MediaType`) and the concurrency mode is set transparently — no user configuration needed.
+Drive type is detected at scan start via PowerShell WMI (`Get-PhysicalDisk | MediaType`) and the scanner is selected transparently — no user configuration needed.
+
+### Native HDD scanner — `FindFirstFileExW`
+
+The root cause of HDD slowness is `fs.stat()` per file. Each call is a random disk seek (~10ms). For a directory with 1000 files: 1001 I/O ops.
+
+The native scanner uses `FindFirstFileExW` with `FIND_FIRST_EX_LARGE_FETCH` + `FindExInfoBasic` (Windows `kernel32.dll`). `WIN32_FIND_DATA` already contains `nFileSizeLow`/`nFileSizeHigh` — so we get the size of every file in the same call that lists the directory. No `stat()` needed.
+
+For a directory with 1000 files: **1001 I/O ops → 1 bulk directory read.**
+
+The addon is a small N-API C++ file (`native/fast-readdir.cpp`) that runs on the libuv thread pool (non-blocking). Compiled with VS2019 via `node-gyp`.
 
 ### Benchmark results
 
@@ -201,10 +212,13 @@ process.on('unhandledRejection', () => { /* Node.js 20 Windows emoji-path bug */
 ```
 src/
   main/
-    scanner-fast.ts       # IMF-style scanner (active, wired into ipc-handlers)
-    ipc-handlers.ts       # Electron IPC bridge
-    drive-info.ts         # drive enumeration + HDD/SSD detection
+    scanner-fast.ts       # IMF-style scanner — used for SSDs
+    scanner-native.ts     # native FindFirstFileExW scanner — used for HDDs
+    ipc-handlers.ts       # Electron IPC bridge (picks scanner per drive type)
+    drive-info.ts         # drive enumeration + HDD/SSD detection via WMI
     file-actions.ts       # delete, open, preview
+native/
+  fast-readdir.cpp        # C++ N-API addon (FindFirstFileExW, returns sizes w/o stat)
   preload/
     index.ts
     types.ts

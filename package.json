@@ -7,8 +7,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "build:win": "npm run build && electron-builder --win --config",
-    "build:unpack": "npm run build && electron-builder --dir --config",
+    "build:win": "npm run build:native && npm run build && electron-builder --win --config",
+    "build:unpack": "npm run build:native && npm run build && electron-builder --dir --config",
+    "build:native": "node-gyp configure build",
     "benchmark": "tsx benchmark/run.ts"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
     "electron": "^28.2.0",
     "electron-builder": "^24.9.1",
     "electron-vite": "^2.0.0",
+    "node-addon-api": "^8.6.0",
     "postcss": "^8.4.33",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

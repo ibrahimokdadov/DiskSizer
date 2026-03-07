@@ -2,7 +2,6 @@ import { promises as fs } from 'fs'
 import * as path from 'path'
 import type { BrowserWindow } from 'electron'
 import type { FileNode, ScanResult, ScanProgress } from './scanner'
-import { getDriveMediaType } from './drive-info'
 
 /**
  * IMF-inspired scanner.
@@ -21,25 +20,6 @@ import { getDriveMediaType } from './drive-info'
  * adds ~7M extra microtask callbacks, which costs more than it saves. The OS
  * I/O scheduler handles concurrent readdir/stat calls efficiently on its own.
  */
-
-/** Limits concurrent disk I/O on HDDs to prevent seek thrashing. */
-class Semaphore {
-  private permits: number
-  private queue: Array<() => void> = []
-  constructor(permits: number) { this.permits = permits }
-  acquire(): Promise<void> {
-    if (this.permits > 0) { this.permits--; return Promise.resolve() }
-    return new Promise(resolve => this.queue.push(resolve))
-  }
-  release(): void {
-    if (this.queue.length > 0) this.queue.shift()!()
-    else this.permits++
-  }
-}
-
-// HDD: 4 concurrent I/O ops keeps the disk head moving predictably.
-// SSD: no limit — random access is ~100x cheaper so parallelism wins.
-const HDD_CONCURRENCY = 4
 
 const SKIP_DIRS = new Set([
   '$Recycle.Bin', 'System Volume Information', '$WINDOWS.~BT',
@@ -63,7 +43,6 @@ export class FastDiskScanner {
   private errors: string[] = []
   private startTime = 0
   private lastProgressMs = 0
-  private sem: Semaphore | null = null
 
   get isScanning(): boolean {
     return this.scanning
@@ -77,13 +56,8 @@ export class FastDiskScanner {
   /** App entry point — wires IPC events to the window. */
   async scan(dirPath: string, window: BrowserWindow): Promise<ScanResult> {
     const onProgress = (p: ScanProgress) => window.webContents.send('scan-progress', p)
-
-    const driveLetter = path.parse(dirPath).root
-    const mediaType = await getDriveMediaType(driveLetter)
-    const concurrency = mediaType === 'HDD' ? HDD_CONCURRENCY : null
-
     try {
-      const result = await this._scan(dirPath, onProgress, concurrency)
+      const result = await this._scan(dirPath, onProgress)
       window.webContents.send('scan-complete', result)
       return result
     } catch (err: any) {
@@ -106,8 +80,7 @@ export class FastDiskScanner {
 
   private async _scan(
     dirPath: string,
-    onProgress?: (p: ScanProgress) => void,
-    concurrency: number | null = null
+    onProgress?: (p: ScanProgress) => void
   ): Promise<ScanResult> {
     this.aborted = false
     this.scanning = true
@@ -117,7 +90,6 @@ export class FastDiskScanner {
     this.errors = []
     this.startTime = Date.now()
     this.lastProgressMs = 0
-    this.sem = concurrency ? new Semaphore(concurrency) : null
 
     const root = await this.scanDirectory(dirPath, 0, onProgress)
     this.scanning = false
@@ -145,10 +117,7 @@ export class FastDiskScanner {
     })
   }
 
-  /**
-   * Beyond MAX_DEPTH: accumulate sizes without building child nodes.
-   * All stat calls run through the semaphore to stay within CONCURRENCY.
-   */
+  /** Beyond MAX_DEPTH: accumulate sizes without building child nodes. */
   private async aggregateSize(
     dirPath: string
   ): Promise<{ size: number; files: number; dirs: number }> {
@@ -156,12 +125,7 @@ export class FastDiskScanner {
 
     let entries: any[]
     try {
-      if (this.sem) await this.sem.acquire()
-      try {
-        entries = await fs.readdir(dirPath, { withFileTypes: true })
-      } finally {
-        if (this.sem) this.sem.release()
-      }
+      entries = await fs.readdir(dirPath, { withFileTypes: true })
     } catch {
       return { size: 0, files: 0, dirs: 0 }
     }
@@ -188,13 +152,7 @@ export class FastDiskScanner {
             dirs += sub.dirs
           } else if (entry.isFile()) {
             try {
-              if (this.sem) await this.sem.acquire()
-              let stat: any
-              try {
-                stat = await fs.stat(fullPath)
-              } finally {
-                if (this.sem) this.sem.release()
-              }
+              const stat = await fs.stat(fullPath)
               totalSize += stat.size
               this.totalSize += stat.size
               files++
@@ -232,12 +190,7 @@ export class FastDiskScanner {
 
     let entries: any[]
     try {
-      if (this.sem) await this.sem.acquire()
-      try {
-        entries = await fs.readdir(dirPath, { withFileTypes: true })
-      } finally {
-        if (this.sem) this.sem.release()
-      }
+      entries = await fs.readdir(dirPath, { withFileTypes: true })
     } catch (err: any) {
       if (this.errors.length < MAX_ERRORS) this.errors.push(`${dirPath}: ${err.message}`)
       return { name: path.basename(dirPath), path: dirPath, size: 0, type: 'directory', children: [], itemCount: 0 }
@@ -336,13 +289,7 @@ export class FastDiskScanner {
 
     if (entry.isFile()) {
       try {
-        if (this.sem) await this.sem.acquire()
-        let stat: any
-        try {
-          stat = await fs.stat(fullPath)
-        } finally {
-          if (this.sem) this.sem.release()
-        }
+        const stat = await fs.stat(fullPath)
         this.filesScanned++
         this.totalSize += stat.size
         return {
