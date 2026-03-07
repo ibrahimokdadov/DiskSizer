@@ -16,6 +16,7 @@ A fast Windows disk space analyzer. Visualize what's eating your disk with inter
 - **Right-click context menu** — open in Explorer, delete, preview file contents.
 - **Keyboard navigation** — `Enter` to drill in, `Esc` to navigate up.
 - **IMF-style scanner** — batch-64 architecture inspired by disk-based nearest-neighbor research. 1.18× faster on large trees, 1.92× faster on smaller directories, 73% less heap.
+- **HDD-aware concurrency** — auto-detects drive type via WMI; applies a 4-slot I/O semaphore on HDDs to prevent seek thrashing, runs unlimited parallel I/O on SSDs.
 
 ---
 
@@ -96,9 +97,9 @@ Result: **hung indefinitely** on `node_modules`-heavy trees. A directory with th
 
 Added a second `scanSem` (128 slots) to limit concurrent `scanDirectory` calls. This caused a classic **recursive semaphore deadlock**: outer `processEntry` holds a slot waiting for inner `scanDirectory`, which needs slots for its own `processEntry` calls — all 128 slots are held by callers waiting for their callees.
 
-**Final approach — batch-64, no semaphore**
+**Final approach — batch-64, adaptive semaphore**
 
-Kept the batch loop, tripled the batch size from 20 → 64, removed the semaphore entirely:
+Kept the batch loop, tripled the batch size from 20 → 64. The semaphore was removed for SSDs (OS I/O scheduler is sufficient), but added back at low concurrency for HDDs:
 
 ```ts
 for (let i = 0; i < entries.length; i += 64) {
@@ -107,8 +108,10 @@ for (let i = 0; i < entries.length; i += 64) {
 }
 ```
 
-The OS I/O scheduler handles concurrent `readdir`/`stat` calls efficiently on its own.
-No semaphore overhead. No deadlock. 3× more I/O ops per batch → smaller idle gaps.
+**SSD:** no semaphore — random access is ~100× cheaper, parallelism wins.
+**HDD:** global 4-slot semaphore on all `readdir`/`stat` calls — keeps the disk head moving predictably instead of thrashing across random seek positions.
+
+Drive type is detected at scan start via PowerShell WMI (`Get-PhysicalDisk | MediaType`) and the concurrency mode is set transparently — no user configuration needed.
 
 ### Benchmark results
 
@@ -199,9 +202,8 @@ process.on('unhandledRejection', () => { /* Node.js 20 Windows emoji-path bug */
 src/
   main/
     scanner-fast.ts       # IMF-style scanner (active, wired into ipc-handlers)
-    scanner.ts            # original scanner (kept for reference)
     ipc-handlers.ts       # Electron IPC bridge
-    drive-info.ts         # drive enumeration
+    drive-info.ts         # drive enumeration + HDD/SSD detection
     file-actions.ts       # delete, open, preview
   preload/
     index.ts
