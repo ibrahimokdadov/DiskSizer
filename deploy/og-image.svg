@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0B0B10"/>
+      <stop offset="100%" style="stop-color:#13101E"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="35%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#7C3AED;stop-opacity:0.15"/>
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E1E2C" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.5"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- Left accent bar -->
+  <rect x="0" y="0" width="5" height="630" fill="#7C3AED"/>
+
+  <!-- Sunburst decorative (right side) -->
+  <g transform="translate(960,315)">
+    <!-- Ring 3 outer segments -->
+    <path d="M0,-200 A200,200,0,0,1,190,-62 L133,-43 A140,140,0,0,0,0,-140 Z" fill="#8B5CF6" opacity="0.7"/>
+    <path d="M190,-62 A200,200,0,0,1,124,160 L87,112 A140,140,0,0,0,133,-43 Z" fill="#3B82F6" opacity="0.7"/>
+    <path d="M124,160 A200,200,0,0,1,-76,185 L-53,130 A140,140,0,0,0,87,112 Z" fill="#10B981" opacity="0.7"/>
+    <path d="M-76,185 A200,200,0,0,1,-190,62 L-133,43 A140,140,0,0,0,-53,130 Z" fill="#F59E0B" opacity="0.7"/>
+    <path d="M-190,62 A200,200,0,0,1,-124,-160 L-87,-112 A140,140,0,0,0,-133,43 Z" fill="#F97316" opacity="0.7"/>
+    <path d="M-124,-160 A200,200,0,0,1,0,-200 L0,-140 A140,140,0,0,0,-87,-112 Z" fill="#475569" opacity="0.7"/>
+    <!-- Ring 2 mid -->
+    <circle cx="0" cy="0" r="130" fill="none" stroke="#6D28D9" stroke-width="20" stroke-dasharray="200 620" stroke-dashoffset="0" opacity="0.6"/>
+    <circle cx="0" cy="0" r="130" fill="none" stroke="#5B21B6" stroke-width="20" stroke-dasharray="280 620" stroke-dashoffset="-205" opacity="0.6"/>
+    <circle cx="0" cy="0" r="130" fill="none" stroke="#4C1D95" stroke-width="20" stroke-dasharray="135 620" stroke-dashoffset="-490" opacity="0.6"/>
+    <!-- Center -->
+    <circle cx="0" cy="0" r="55" fill="#0B0B10" stroke="#1E1E2C" stroke-width="1"/>
+    <text x="0" y="-5" text-anchor="middle" font-family="'Outfit', Arial, sans-serif" font-size="12" font-weight="700" fill="#7C3AED">DISK</text>
+    <text x="0" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#60709A">USAGE</text>
+  </g>
+
+  <!-- App name -->
+  <text x="80" y="230"
+        font-family="'Outfit', 'Arial', sans-serif"
+        font-size="92" font-weight="900" letter-spacing="-4"
+        fill="#E8EEFF">DiskSizer</text>
+
+  <!-- Tagline -->
+  <text x="80" y="300"
+        font-family="Arial, sans-serif"
+        font-size="26" font-weight="400"
+        fill="#60709A">Visualize what's eating your disk.</text>
+
+  <!-- Metrics pills -->
+  <rect x="80" y="345" width="100" height="32" rx="16" fill="rgba(245,158,11,0.12)" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
+  <text x="130" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#F59E0B">1.18× faster</text>
+
+  <rect x="194" y="345" width="110" height="32" rx="16" fill="rgba(124,58,237,0.12)" stroke="rgba(124,58,237,0.3)" stroke-width="1"/>
+  <text x="249" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#A78BFA">−73% heap</text>
+
+  <rect x="318" y="345" width="130" height="32" rx="16" fill="rgba(16,185,129,0.12)" stroke="rgba(16,185,129,0.3)" stroke-width="1"/>
+  <text x="383" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#10B981">Open Source</text>
+
+  <!-- Domain -->
+  <rect x="80" y="560" width="250" height="36" rx="6" fill="rgba(124,58,237,0.08)" stroke="rgba(124,58,237,0.2)" stroke-width="1"/>
+  <text x="205" y="583" text-anchor="middle"
+        font-family="'Courier New', monospace" font-size="14"
+        fill="#A78BFA">disksizer.whhite.com</text>
+</svg>

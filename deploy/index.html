@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DiskSizer — Fast Windows Disk Space Analyzer</title>
+  <meta name="description" content="Visualize what's eating your disk with interactive sunburst and treemap charts. Native HDD scanner, live progress, 1.92× faster than standard scanners. Free and open source." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://disksizer.whhite.com/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://disksizer.whhite.com/" />
+  <meta property="og:title" content="DiskSizer — Fast Windows Disk Space Analyzer" />
+  <meta property="og:description" content="Interactive sunburst and treemap charts. Native HDD scanner. 1.92× faster. Free and open source for Windows." />
+  <meta property="og:image" content="https://disksizer.whhite.com/og-image.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="DiskSizer" />
+  <meta name="twitter:description" content="Visualize what's eating your disk. Sunburst charts, treemap, native HDD scanner, 1.92× faster." />
+  <meta name="twitter:image" content="https://disksizer.whhite.com/og-image.svg" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"DiskSizer","description":"Fast Windows disk space analyzer with interactive sunburst and treemap charts, live scan progress, and a native HDD scanner.","url":"https://disksizer.whhite.com","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","email":"ibrahim@whhite.com"}}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:     #0B0B10;
+      --bg2:    #101016;
+      --bg3:    #17171F;
+      --bg4:    #1E1E29;
+      --border: #1E1E2C;
+      --border2:#28283A;
+      --text:   #CDD5E8;
+      --text2:  #60709A;
+      --text3:  #2C3050;
+      --violet: #7C3AED;
+      --violet2:#A78BFA;
+      --vdim:   rgba(124,58,237,0.12);
+      --vglow:  0 0 30px rgba(124,58,237,0.22), 0 0 70px rgba(124,58,237,0.07);
+      --amber:  #F59E0B;
+      --adim:   rgba(245,158,11,0.1);
+      --green:  #10B981;
+      --gdim:   rgba(16,185,129,0.1);
+      --blue:   #3B82F6;
+      --purple: #8B5CF6;
+      --pink:   #EC4899;
+      --orange: #F97316;
+      --red:    #EF4444;
+      --cyan:   #38BDF8;
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* Subtle noise overlay */
+    body::before {
+      content:'';
+      position:fixed; inset:0;
+      pointer-events:none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      opacity:0.018;
+      z-index:9999;
+    }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 28px;
+      position: relative; z-index:1;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top:0; z-index:200;
+      background: rgba(11,11,16,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      display:flex; align-items:center; justify-content:space-between;
+      height:58px;
+    }
+    .logo {
+      display:flex; align-items:center; gap:10px;
+      text-decoration:none;
+      font-family:'Outfit', sans-serif;
+      font-size:17px; font-weight:700;
+      color:#E0E8FF;
+    }
+    .logo-icon {
+      width:30px; height:30px;
+      background: linear-gradient(135deg, var(--violet), var(--violet2));
+      border-radius:7px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:14px;
+      box-shadow: 0 4px 12px rgba(124,58,237,0.35);
+    }
+    .nav-links { display:flex; gap:4px; list-style:none; }
+    .nav-links a {
+      color:var(--text2); text-decoration:none;
+      font-size:13px; padding:6px 12px; border-radius:6px;
+      transition: color .2s, background .2s;
+    }
+    .nav-links a:hover { color:var(--text); background:var(--bg3); }
+    .nav-gh {
+      display:flex; align-items:center; gap:6px;
+      color:var(--text2) !important;
+      border:1px solid var(--border2) !important;
+      transition: all .2s !important;
+    }
+    .nav-gh:hover {
+      color:var(--violet2) !important;
+      border-color:rgba(167,139,250,0.4) !important;
+      background:var(--vdim) !important;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      min-height: calc(100vh - 58px);
+      display:flex; align-items:center;
+      padding: 64px 0;
+    }
+    .hero-grid {
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:60px; align-items:center; width:100%;
+    }
+    .hero-eyebrow {
+      display:inline-flex; align-items:center; gap:8px;
+      font-size:12px; font-weight:500;
+      letter-spacing:.12em; text-transform:uppercase;
+      color:var(--violet2);
+      background:var(--vdim);
+      border:1px solid rgba(167,139,250,0.2);
+      padding:5px 12px; border-radius:20px;
+      margin-bottom:24px;
+    }
+    .hero-eyebrow::before {
+      content:'◆'; font-size:8px;
+    }
+    h1 {
+      font-family:'Outfit', sans-serif;
+      font-size: clamp(38px,4vw,62px);
+      font-weight:900;
+      line-height:1.06; letter-spacing:-.03em;
+      color:#E8EEFF;
+      margin-bottom:22px;
+    }
+    h1 span { color:var(--violet2); }
+    .hero-sub {
+      font-size:15px; color:var(--text2);
+      line-height:1.8; margin-bottom:36px;
+      max-width:430px;
+    }
+    .ctas { display:flex; gap:12px; flex-wrap:wrap; }
+    .btn {
+      display:inline-flex; align-items:center; gap:8px;
+      font-family:'DM Sans', sans-serif;
+      font-size:14px; font-weight:500;
+      padding:12px 24px; border-radius:8px;
+      text-decoration:none; transition:all .2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--violet), #5B21B6);
+      color:#fff;
+      box-shadow: 0 4px 20px rgba(124,58,237,0.3);
+    }
+    .btn-primary:hover {
+      transform:translateY(-2px);
+      box-shadow: var(--vglow);
+    }
+    .btn-outline {
+      color:var(--text2);
+      border:1px solid var(--border2);
+    }
+    .btn-outline:hover { color:var(--text); background:var(--bg3); }
+
+    /* ── Sunburst ── */
+    .sunburst-wrap {
+      display:flex; justify-content:center; align-items:center;
+      position:relative;
+    }
+    .sunburst-wrap::before {
+      content:'';
+      position:absolute; inset:-60px;
+      background: radial-gradient(ellipse at center,
+        rgba(124,58,237,0.12) 0%, transparent 65%);
+      pointer-events:none; border-radius:50%;
+    }
+    #sunburst-svg {
+      width:100%; max-width:480px;
+      filter: drop-shadow(0 0 30px rgba(124,58,237,0.15));
+    }
+    .sb-segment {
+      transition: opacity .2s, filter .2s;
+      cursor:default;
+    }
+    .sb-segment:hover {
+      opacity:0.85;
+      filter: brightness(1.2);
+    }
+    @keyframes sb-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes sb-in {
+      from { opacity:0; transform:scale(0.6); }
+      to   { opacity:1; transform:scale(1); }
+    }
+    .sb-group {
+      transform-origin: 240px 240px;
+      animation: sb-in .8s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    .sb-group-1 { animation-delay:.1s; }
+    .sb-group-2 { animation-delay:.25s; }
+    .sb-group-3 { animation-delay:.4s; }
+    .sb-rotate {
+      transform-origin: 240px 240px;
+      animation: sb-spin 80s linear infinite;
+    }
+    .sb-legend {
+      position:absolute; bottom:-8px; right:0;
+      display:flex; flex-direction:column; gap:5px;
+    }
+    .sb-legend-item {
+      display:flex; align-items:center; gap:6px;
+      font-size:11px; color:var(--text2);
+    }
+    .sb-legend-dot {
+      width:8px; height:8px; border-radius:2px; flex-shrink:0;
+    }
+
+    /* ── Stats strip ── */
+    .stats {
+      border-top:1px solid var(--border);
+      border-bottom:1px solid var(--border);
+      padding:20px 0;
+    }
+    .stats-row {
+      display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px;
+    }
+    .stat {
+      display:flex; align-items:center; gap:10px;
+      font-size:13px; color:var(--text2);
+    }
+    .stat-icon { color:var(--violet2); font-size:16px; }
+    .stat strong { color:var(--text); font-weight:500; }
+
+    /* ── Sections ── */
+    .section { padding:88px 0; }
+    .sep { border:none; border-top:1px solid var(--border); }
+    .section-eye {
+      font-size:11px; font-weight:500;
+      letter-spacing:.15em; text-transform:uppercase;
+      color:var(--violet2); margin-bottom:12px;
+    }
+    h2 {
+      font-family:'Outfit', sans-serif;
+      font-size:clamp(30px,3vw,44px);
+      font-weight:800; letter-spacing:-.025em;
+      color:#E8EEFF; margin-bottom:48px;
+      line-height:1.12;
+    }
+
+    /* ── Feature cards ── */
+    .feat-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:2px;
+      border:1px solid var(--border);
+    }
+    .feat {
+      padding:36px 30px;
+      border-right:1px solid var(--border);
+      transition:background .25s;
+    }
+    .feat:last-child { border-right:none; }
+    .feat:hover { background:var(--bg2); }
+    .feat-icon {
+      width:42px; height:42px;
+      background:var(--vdim);
+      border:1px solid rgba(124,58,237,0.2);
+      border-radius:10px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:18px; margin-bottom:20px;
+    }
+    .feat h3 {
+      font-family:'Outfit', sans-serif;
+      font-size:15px; font-weight:700;
+      color:#E8EEFF; margin-bottom:10px;
+    }
+    .feat p { font-size:13px; color:var(--text2); line-height:1.85; }
+
+    /* ── Treemap mockup ── */
+    .treemap-demo {
+      background:var(--bg2);
+      border:1px solid var(--border);
+      border-radius:12px;
+      overflow:hidden;
+      padding:16px;
+    }
+    .treemap-bar {
+      background:var(--bg3);
+      border:1px solid var(--border);
+      border-radius:8px 8px 0 0;
+      padding:10px 14px;
+      display:flex; align-items:center; gap:8px;
+      margin-bottom:12px;
+    }
+    .treemap-dot { width:8px; height:8px; border-radius:50%; }
+    .treemap-path {
+      font-family:'DM Sans', sans-serif;
+      font-size:11px; color:var(--text2);
+    }
+    .treemap-grid {
+      display:grid;
+      grid-template-columns: 3fr 2fr 1.5fr;
+      grid-template-rows: 1fr 1fr;
+      gap:3px;
+      height:180px;
+      border-radius:6px; overflow:hidden;
+    }
+    .tm-cell {
+      display:flex; flex-direction:column;
+      padding:10px 12px;
+      font-size:11px;
+      border-radius:3px;
+      transition:filter .2s;
+      cursor:default;
+    }
+    .tm-cell:hover { filter:brightness(1.15); }
+    .tm-cell .tm-name { color:rgba(255,255,255,0.9); font-weight:600; font-size:12px; }
+    .tm-cell .tm-size { color:rgba(255,255,255,0.55); margin-top:2px; }
+    .tm-span-2 { grid-row: span 2; }
+
+    /* ── Perf section ── */
+    .perf-section {
+      padding:80px 0;
+      position:relative;
+    }
+    .perf-section::before {
+      content:'';
+      position:absolute; inset:0;
+      background: radial-gradient(ellipse at 30% 50%,
+        rgba(124,58,237,0.06) 0%, transparent 60%);
+      pointer-events:none;
+    }
+    .perf-grid {
+      display:grid; grid-template-columns:1fr 1fr;
+      gap:60px; align-items:center; margin-top:0;
+    }
+    .metrics {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:20px;
+    }
+    .metric {
+      background:var(--bg2);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:24px 20px;
+      text-align:center;
+      position:relative; overflow:hidden;
+    }
+    .metric::before {
+      content:'';
+      position:absolute; top:0; left:0; right:0;
+      height:2px;
+    }
+    .metric.m-amber::before { background:var(--amber); }
+    .metric.m-violet::before { background:var(--violet); }
+    .metric.m-green::before  { background:var(--green); }
+    .metric-val {
+      font-family:'Outfit', sans-serif;
+      font-size:36px; font-weight:900;
+      line-height:1; margin-bottom:6px;
+      letter-spacing:-.02em;
+    }
+    .m-amber .metric-val { color:var(--amber); }
+    .m-violet .metric-val { color:var(--violet2); }
+    .m-green  .metric-val { color:var(--green); }
+    .metric-label {
+      font-size:11px; color:var(--text2);
+      text-transform:uppercase; letter-spacing:.08em;
+    }
+    .bench-context h3 {
+      font-family:'Outfit', sans-serif;
+      font-size:22px; font-weight:700;
+      color:#E8EEFF; margin-bottom:14px;
+    }
+    .bench-context p {
+      font-size:13px; color:var(--text2);
+      line-height:1.85; margin-bottom:14px;
+    }
+    .bench-table {
+      width:100%; border-collapse:collapse;
+      font-size:12px; margin-top:16px;
+    }
+    .bench-table th {
+      text-align:left; color:var(--text3);
+      font-size:10px; letter-spacing:.08em;
+      text-transform:uppercase;
+      padding:8px 12px; border-bottom:1px solid var(--border);
+    }
+    .bench-table td {
+      padding:10px 12px; border-bottom:1px solid var(--border);
+    }
+    .bench-table tr:last-child td { border-bottom:none; }
+    .before { color:var(--text2); }
+    .after  { color:var(--green); font-weight:500; }
+    .gain   { color:var(--amber); font-weight:600; }
+
+    /* ── Stack ── */
+    .stack-section { padding:80px 0; }
+    .stack-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:12px;
+      margin-top:8px;
+    }
+    .stack-item {
+      background:var(--bg2);
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:18px 20px;
+      display:flex; align-items:center; gap:14px;
+      transition:border-color .2s, background .2s;
+    }
+    .stack-item:hover {
+      border-color:var(--border2);
+      background:var(--bg3);
+    }
+    .stack-badge {
+      width:36px; height:36px; border-radius:8px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:14px; flex-shrink:0;
+    }
+    .stack-name {
+      font-family:'Outfit', sans-serif;
+      font-size:14px; font-weight:600; color:#E8EEFF;
+    }
+    .stack-role { font-size:12px; color:var(--text2); }
+
+    /* ── CTA ── */
+    .cta {
+      padding:100px 0; text-align:center; position:relative;
+    }
+    .cta::before {
+      content:'';
+      position:absolute; inset:0;
+      background:radial-gradient(ellipse at center,
+        rgba(124,58,237,0.08) 0%, transparent 55%);
+      pointer-events:none;
+    }
+    .cta h2 { margin-bottom:14px; }
+    .cta p { font-size:14px; color:var(--text2); margin-bottom:36px; }
+    .cta .ctas { justify-content:center; }
+
+    /* ── Footer ── */
+    footer { padding:22px 0; border-top:1px solid var(--border); }
+    .foot-row {
+      display:flex; justify-content:space-between; align-items:center;
+      font-size:12px; color:var(--text3);
+    }
+    .foot-links { display:flex; gap:20px; }
+    .foot-links a {
+      color:var(--text3); text-decoration:none; transition:color .2s;
+    }
+    .foot-links a:hover { color:var(--text2); }
+
+    /* ── Animations ── */
+    @keyframes rise {
+      from { opacity:0; transform:translateY(20px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .rise  { animation:rise .6s ease both; }
+    .d1 { animation-delay:.08s; }
+    .d2 { animation-delay:.18s; }
+    .d3 { animation-delay:.28s; }
+    .d4 { animation-delay:.38s; }
+    .d5 { animation-delay:.48s; }
+
+    /* ── Responsive ── */
+    @media (max-width:860px) {
+      .hero { padding:48px 0; min-height:auto; }
+      .hero-grid { grid-template-columns:1fr; gap:48px; }
+      .feat-grid { grid-template-columns:1fr; }
+      .feat { border-right:none; border-bottom:1px solid var(--border); }
+      .feat:last-child { border-bottom:none; }
+      .perf-grid { grid-template-columns:1fr; gap:40px; }
+      .metrics { grid-template-columns:repeat(3,1fr); }
+      .stack-grid { grid-template-columns:repeat(2,1fr); }
+      .nav-links { display:none; }
+      .stats-row { gap:12px; }
+    }
+    @media (max-width:500px) {
+      .metrics { grid-template-columns:1fr; }
+      .stack-grid { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Nav ── -->
+  <nav>
+    <div class="container">
+      <div class="nav-inner">
+        <a href="/" class="logo">
+          <span class="logo-icon">◈</span>
+          DiskSizer
+        </a>
+        <ul class="nav-links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#performance">Performance</a></li>
+          <li><a href="#stack">Stack</a></li>
+          <li>
+            <a href="https://github.com/ibrahimokdadov/windowsDiskV" class="nav-gh" target="_blank" rel="noopener">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              GitHub
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Hero ── -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-grid">
+
+        <!-- Copy -->
+        <div>
+          <p class="hero-eyebrow rise">Windows Disk Analyzer</p>
+          <h1 class="rise d1">See what's eating<br>your <span>disk space.</span></h1>
+          <p class="hero-sub rise d2">
+            Interactive sunburst and treemap charts powered by D3.
+            A native HDD scanner that eliminates per-file syscalls.
+            Live scan progress. Open source, free forever.
+          </p>
+          <div class="ctas rise d3">
+            <a href="https://github.com/ibrahimokdadov/windowsDiskV" class="btn btn-primary" target="_blank" rel="noopener">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              View on GitHub
+            </a>
+            <a href="#features" class="btn btn-outline rise d4">Explore features</a>
+          </div>
+        </div>
+
+        <!-- Sunburst -->
+        <div class="sunburst-wrap rise d2">
+          <svg id="sunburst-svg" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="4" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <!-- Generated by JS below -->
+            <g id="sb-rings"></g>
+            <!-- Center hole label -->
+            <circle cx="240" cy="240" r="54" fill="#0B0B10" stroke="#1E1E2C" stroke-width="1.5"/>
+            <text x="240" y="235" text-anchor="middle" font-family="'Outfit', sans-serif" font-size="11" font-weight="700" fill="#7C3AED">DISK</text>
+            <text x="240" y="252" text-anchor="middle" font-family="'DM Sans', sans-serif" font-size="10" fill="#60709A">USAGE</text>
+          </svg>
+          <div class="sb-legend" id="sb-legend"></div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Stats strip ── -->
+  <div class="stats">
+    <div class="container">
+      <div class="stats-row">
+        <div class="stat"><span class="stat-icon">◈</span> <strong>Electron 28</strong> desktop app</div>
+        <div class="stat"><span class="stat-icon">▦</span> Sunburst <strong>&amp;</strong> Treemap charts</div>
+        <div class="stat"><span class="stat-icon">▲</span> <strong>1.92×</strong> faster scanner</div>
+        <div class="stat"><span class="stat-icon">↓</span> <strong>−73%</strong> heap usage</div>
+        <div class="stat"><span class="stat-icon">◆</span> <strong>Free</strong> &amp; open source</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Features ── -->
+  <section class="section" id="features">
+    <div class="container">
+      <p class="section-eye">Features</p>
+      <h2>Everything to understand<br>your storage at a glance</h2>
+      <div class="feat-grid">
+        <div class="feat">
+          <div class="feat-icon">◉</div>
+          <h3>Sunburst &amp; Treemap Charts</h3>
+          <p>Two interactive D3-powered views. Click any segment to drill into a directory, press Esc to navigate back up. Every file and folder visualized in proportion to its size.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">▷</div>
+          <h3>Live Scan Progress</h3>
+          <p>Files and sizes accumulate in real time as the scanner works. A progress overlay keeps you informed — no waiting blindly for a result to appear.</p>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">⚡</div>
+          <h3>HDD-Aware Native Scanner</h3>
+          <p>Auto-detects drive type via WMI. On HDDs, a native C++ addon uses <code>FindFirstFileExW</code> to read file sizes from directory entries directly — eliminating all per-file <code>stat()</code> syscalls.</p>
+        </div>
+      </div>
+
+      <!-- Treemap demo -->
+      <div style="margin-top:48px">
+        <div class="treemap-demo">
+          <div class="treemap-bar">
+            <div class="treemap-dot" style="background:#7C3AED"></div>
+            <span class="treemap-path">C:\ — 512 GB — Treemap view</span>
+          </div>
+          <div class="treemap-grid" id="treemap-grid">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Performance ── -->
+  <hr class="sep">
+  <section class="perf-section" id="performance">
+    <div class="container">
+      <div class="perf-grid">
+        <div>
+          <p class="section-eye">Performance</p>
+          <h2 style="margin-bottom:24px">Engineered for<br>real-world disks</h2>
+          <div class="metrics">
+            <div class="metric m-amber">
+              <div class="metric-val">1.18×</div>
+              <div class="metric-label">faster on large trees<br>(3M+ files)</div>
+            </div>
+            <div class="metric m-violet">
+              <div class="metric-val">1.92×</div>
+              <div class="metric-label">faster on smaller dirs</div>
+            </div>
+            <div class="metric m-green">
+              <div class="metric-val">−73%</div>
+              <div class="metric-label">heap usage reduction</div>
+            </div>
+          </div>
+        </div>
+        <div class="bench-context">
+          <h3>IMF-style scanner architecture</h3>
+          <p>
+            Inspired by the XN-Graph SIGIR '25 paper on disk-based nearest-neighbor search,
+            the scanner applies an In-Memory First (IMF) strategy: instead of waiting on each
+            I/O batch, it keeps 64 requests in flight simultaneously, eliminating the idle gap
+            between completions.
+          </p>
+          <p>
+            On HDDs, a native C++ N-API addon (<code>FindFirstFileExW</code>) fetches file sizes
+            directly from directory entries — no additional <code>stat()</code> per file.
+            On SSDs, the IMF scanner runs with unlimited parallelism.
+          </p>
+          <table class="bench-table">
+            <thead>
+              <tr><th>Workload</th><th>Before</th><th>After</th><th>Gain</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>3M files (large tree)</td>
+                <td class="before">81.1s</td>
+                <td class="after">68.8s</td>
+                <td class="gain">1.18×</td>
+              </tr>
+              <tr>
+                <td>Smaller directories</td>
+                <td class="before">baseline</td>
+                <td class="after">—</td>
+                <td class="gain">1.92×</td>
+              </tr>
+              <tr>
+                <td>Heap allocation</td>
+                <td class="before">~100%</td>
+                <td class="after">~27%</td>
+                <td class="gain">−73%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Stack ── -->
+  <hr class="sep">
+  <section class="stack-section" id="stack">
+    <div class="container">
+      <p class="section-eye">Technology</p>
+      <h2>Built on a solid<br>modern stack</h2>
+      <div class="stack-grid">
+        <div class="stack-item">
+          <div class="stack-badge" style="background:rgba(59,130,246,0.12);color:#3B82F6">⬡</div>
+          <div>
+            <div class="stack-name">Electron 28</div>
+            <div class="stack-role">Native desktop shell</div>
+          </div>
+        </div>
+        <div class="stack-item">
+          <div class="stack-badge" style="background:rgba(96,165,250,0.12);color:#60A5FA">⚛</div>
+          <div>
+            <div class="stack-name">React 18</div>
+            <div class="stack-role">UI framework</div>
+          </div>
+        </div>
+        <div class="stack-item">
+          <div class="stack-badge" style="background:rgba(167,139,250,0.12);color:#A78BFA">▲</div>
+          <div>
+            <div class="stack-name">D3 v7</div>
+            <div class="stack-role">Sunburst &amp; treemap charts</div>
+          </div>
+        </div>
+        <div class="stack-item">
+          <div class="stack-badge" style="background:rgba(245,158,11,0.12);color:#F59E0B">⚡</div>
+          <div>
+            <div class="stack-name">C++ N-API Addon</div>
+            <div class="stack-role">Native HDD scanner</div>
+          </div>
+        </div>
+        <div class="stack-item">
+          <div class="stack-badge" style="background:rgba(16,185,129,0.12);color:#10B981">◈</div>
+          <div>
+            <div class="stack-name">TypeScript</div>
+            <div class="stack-role">Fully typed codebase</div>
+          </div>
+        </div>
+        <div class="stack-item">
+          <div class="stack-badge" style="background:rgba(56,189,248,0.12);color:#38BDF8">◆</div>
+          <div>
+            <div class="stack-name">Tailwind CSS</div>
+            <div class="stack-role">Styling</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <hr class="sep">
+  <section class="cta">
+    <div class="container">
+      <h2>Know your disk.<br>Reclaim your space.</h2>
+      <p>Free, open source, built for Windows.</p>
+      <div class="ctas">
+        <a href="https://github.com/ibrahimokdadov/windowsDiskV" class="btn btn-primary" target="_blank" rel="noopener">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          Get DiskSizer
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <div class="container">
+      <div class="foot-row">
+        <span>DiskSizer — open source, free forever</span>
+        <div class="foot-links">
+          <a href="https://github.com/ibrahimokdadov/windowsDiskV" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/ibrahimokdadov/windowsDiskV/issues" target="_blank" rel="noopener">Issues</a>
+          <a href="/llms.txt">llms.txt</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+  // ── Sunburst generator ───────────────────────────────────────────────────
+  (function() {
+    const CX = 240, CY = 240;
+    const GAP = 1.5; // degrees gap between segments
+
+    function toRad(deg) { return (deg - 90) * Math.PI / 180; }
+
+    function arcPath(cx, cy, r1, r2, a1, a2) {
+      const large = (a2 - a1) > 180 ? 1 : 0;
+      const p = (r, a) => [cx + r * Math.cos(toRad(a)), cy + r * Math.sin(toRad(a))];
+      const [x1, y1] = p(r2, a1), [x2, y2] = p(r2, a2);
+      const [x3, y3] = p(r1, a2), [x4, y4] = p(r1, a1);
+      return `M${x1},${y1} A${r2},${r2},0,${large},1,${x2},${y2} L${x3},${y3} A${r1},${r1},0,${large},0,${x4},${y4} Z`;
+    }
+
+    function buildRing(segments, r1, r2, totalDeg, startDeg) {
+      const total = segments.reduce((s, x) => s + x.pct, 0);
+      let angle = startDeg;
+      const paths = [];
+      segments.forEach((seg, i) => {
+        const span = (seg.pct / total) * totalDeg - GAP;
+        if (span > 0) {
+          paths.push({ d: arcPath(CX, CY, r1, r2, angle + GAP/2, angle + GAP/2 + span), color: seg.color, label: seg.label });
+        }
+        angle += (seg.pct / total) * totalDeg;
+      });
+      return paths;
+    }
+
+    const innerSegs = [
+      { label: 'Windows',  pct: 0.28, color: '#2D3568' },
+      { label: 'Users',    pct: 0.38, color: '#3A4280' },
+      { label: 'Prog Files', pct: 0.20, color: '#25305A' },
+      { label: 'Other',    pct: 0.14, color: '#1E2848' },
+    ];
+    const midSegs = [
+      { label: 'C:\\ OS',   pct: 0.35, color: '#5B21B6' },
+      { label: 'D:\\ Data', pct: 0.45, color: '#6D28D9' },
+      { label: 'E:\\ Media', pct: 0.20, color: '#4C1D95' },
+    ];
+    const outerSegs = [
+      { label: 'Videos',    pct: 0.22, color: '#8B5CF6' },
+      { label: 'Images',    pct: 0.19, color: '#3B82F6' },
+      { label: 'Docs',      pct: 0.13, color: '#10B981' },
+      { label: 'Code',      pct: 0.12, color: '#F59E0B' },
+      { label: 'Archives',  pct: 0.09, color: '#F97316' },
+      { label: 'System',    pct: 0.25, color: '#475569' },
+    ];
+
+    const ring1 = buildRing(innerSegs, 58, 112, 360, 0);
+    const ring2 = buildRing(midSegs,   116, 172, 360, 15);
+    const ring3 = buildRing(outerSegs, 176, 234, 360, 0);
+
+    const svg = document.getElementById('sb-rings');
+
+    // Ring 1 (inner)
+    const g1 = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g1.setAttribute('class','sb-group sb-group-1');
+    ring1.forEach(p => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg','path');
+      el.setAttribute('d', p.d);
+      el.setAttribute('fill', p.color);
+      el.setAttribute('class', 'sb-segment');
+      el.setAttribute('opacity','0.7');
+      g1.appendChild(el);
+    });
+    svg.appendChild(g1);
+
+    // Ring 2 (middle)
+    const g2 = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g2.setAttribute('class','sb-group sb-group-2');
+    ring2.forEach(p => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg','path');
+      el.setAttribute('d', p.d);
+      el.setAttribute('fill', p.color);
+      el.setAttribute('class', 'sb-segment');
+      g2.appendChild(el);
+    });
+    svg.appendChild(g2);
+
+    // Ring 3 (outer) — slow rotation
+    const g3wrap = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g3wrap.setAttribute('class','sb-rotate');
+    const g3 = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g3.setAttribute('class','sb-group sb-group-3');
+    ring3.forEach(p => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg','path');
+      el.setAttribute('d', p.d);
+      el.setAttribute('fill', p.color);
+      el.setAttribute('class', 'sb-segment');
+      g3.appendChild(el);
+    });
+    g3wrap.appendChild(g3);
+    svg.appendChild(g3wrap);
+
+    // Legend (top 4 outer segments)
+    const legend = document.getElementById('sb-legend');
+    outerSegs.slice(0,4).forEach(seg => {
+      const item = document.createElement('div');
+      item.className = 'sb-legend-item';
+      item.innerHTML = `<span class="sb-legend-dot" style="background:${seg.color}"></span>${seg.label}`;
+      legend.appendChild(item);
+    });
+  })();
+
+  // ── Treemap demo ─────────────────────────────────────────────────────────
+  (function() {
+    const cells = [
+      { name: 'Videos',    size: '124 GB', color: '#8B5CF6', span: true  },
+      { name: 'Images',    size:  '89 GB', color: '#3B82F6', span: false },
+      { name: 'System',    size:  '68 GB', color: '#475569', span: false },
+      { name: 'Documents', size:  '42 GB', color: '#10B981', span: false },
+      { name: 'Code',      size:  '31 GB', color: '#F59E0B', span: false },
+    ];
+    const grid = document.getElementById('treemap-grid');
+    cells.forEach(c => {
+      const cell = document.createElement('div');
+      cell.className = 'tm-cell' + (c.span ? ' tm-span-2' : '');
+      cell.style.background = c.color + '22';
+      cell.style.border = `1px solid ${c.color}44`;
+      cell.innerHTML = `<span class="tm-name">${c.name}</span><span class="tm-size">${c.size}</span>`;
+      grid.appendChild(cell);
+    });
+  })();
+  </script>
+</body>
+</html>
