@@ -1,6 +1,8 @@
 # DiskSizer
 
-> A Windows disk space explorer with global file search, previews, allocation accounting, visual maps, and saved scans.
+> Disk full. Of what? Find the files eating your storage, preview what is inside, and decide what stays.
+
+A Windows disk space explorer with global file search, previews, allocation accounting, visual maps, and saved scans.
 
 Current version: 1.1.0. Download the Windows x64 ZIP, extract it, and run DiskSizer.exe. Windows 10 or 11 is required. The build is unsigned.
 
