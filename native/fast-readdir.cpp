@@ -243,12 +243,15 @@ static Napi::Value GetVolumes(const Napi::CallbackInfo& info) {
 }
 
 #include "directory-cursor.h"
+#include "ntfs-journal.h"
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
-  exports.Set("apiVersion", 3);
+  exports.Set("apiVersion", 4);
   DirectoryCursor::Export(env, exports);
   exports.Set("readdirWithStats", Napi::Function::New(env, ReaddirWithStats));
   exports.Set("getVolumes", Napi::Function::New(env, GetVolumes));
+  exports.Set("probeNtfs", Napi::Function::New(env, ProbeNtfs));
+  exports.Set("readNtfsJournal", Napi::Function::New(env, ReadNtfsJournal));
   return exports;
 }
 

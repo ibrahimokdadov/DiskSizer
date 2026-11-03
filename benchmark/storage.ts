@@ -6,9 +6,10 @@ import { nativeAddon, readNativeDirectory } from '../src/main/scanner-native'
 import { readStandardDirectory } from '../src/main/scanner-fast'
 
 async function main() {
-  if (!process.argv[2]) throw new Error('Usage: npm run benchmark:storage -- <folder> [runs=3]')
+  if (!process.argv[2]) throw new Error('Usage: npm run benchmark:storage -- <folder> [runs=3] [concurrency=4]')
   const target = path.resolve(process.argv[2])
   const runs = Number(process.argv[3] ?? 3)
+  const concurrency = Number(process.argv[4] ?? 4)
   if (!Number.isSafeInteger(runs) || runs < 1 || runs > 20) throw new Error('Choose 1–20 runs.')
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'diskvision-storage-bench-'))
   const native = !!nativeAddon?.DirectoryCursor
@@ -23,12 +24,12 @@ async function main() {
       try {
         const start = performance.now()
         index = await DiskScanIndex.scan(path.join(temporary, `${run}.diskvision`), target, `benchmark-${run}`, native ? 'native' : 'standard',
-          native ? readNativeDirectory : readStandardDirectory, new AbortController().signal, () => {})
+          native ? readNativeDirectory : readStandardDirectory, new AbortController().signal, () => {}, { concurrency })
         const result = await index.summary(); sample()
         const accounting = JSON.stringify([result.totalFiles, result.totalDirectories, result.totalSize, result.root.allocatedSize, result.root.allocationUnknownFiles, result.errorCount, result.skippedCount])
         if (expected && accounting !== expected) throw new Error('Counts or accounting changed between runs. Use a stable target before comparing timings.')
         expected = accounting
-        const measurement = { run: run + 1, engine: result.engine, status: result.status, files: result.totalFiles, directories: result.totalDirectories,
+        const measurement = { run: run + 1, concurrency, engine: result.engine, status: result.status, files: result.totalFiles, directories: result.totalDirectories,
           logicalBytes: result.totalSize, allocatedBytes: result.root.allocatedSize, allocationUnknownFiles: result.root.allocationUnknownFiles,
           elapsedMs: performance.now() - start, peakHeapMiB: peakHeap / 1048576, peakRssMiB: peakRss / 1048576, databaseBytes: (await fs.stat(index.filePath)).size }
         measurements.push(measurement); console.log(JSON.stringify(measurement))

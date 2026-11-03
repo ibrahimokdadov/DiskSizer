@@ -1,10 +1,11 @@
 import sqlite3 from 'sqlite3'
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import type { DirectoryEntry } from './scanner-core'
+import { streamDirectories, type EntryReader } from './directory-stream'
 import type { DirectoryPage, DirectoryPageRequest, FileNode, ScanProgress, ScanResult } from '../preload/types'
 
-export type EntryReader = (directory: string, signal: AbortSignal) => AsyncIterable<DirectoryEntry[]>
+export type { EntryReader } from './directory-stream'
+export type ScanOptions = { concurrency?: number }
 type Row = { id: number; path: string; parent: number | null; depth: number; name: string; size: number; allocated: number | null;
   attributed: number | null; identity: string | null; type: 'file' | 'directory'; status: NonNullable<FileNode['status']>;
   modified: number; skipReason: string | null; files: number; dirs: number; items: number; unknown: number; links: number; owner: string | null }
@@ -16,7 +17,8 @@ const categories: Record<string, string[]> = {
   code: ['js', 'ts', 'tsx', 'jsx', 'py', 'rs', 'go', 'c', 'cpp', 'h', 'java', 'cs', 'json', 'html', 'css'],
   archive: ['zip', '7z', 'rar', 'tar', 'gz', 'bz2', 'xz']
 }
-const categoryOf = (name: string) => Object.entries(categories).find(([, extensions]) => extensions.includes(path.extname(name).slice(1).toLowerCase()))?.[0] ?? 'other'
+const extensionCategories = new Map(Object.entries(categories).flatMap(([category, extensions]) => extensions.map(extension => [extension, category] as const)))
+const categoryOf = (name: string) => extensionCategories.get(path.extname(name).slice(1).toLowerCase()) ?? 'other'
 const readNode = (row: Row): FileNode => ({
   name: row.name, path: row.path, type: row.type, size: row.size,
   ...(row.allocated === null ? {} : { allocatedSize: row.allocated }), allocationUnknownFiles: row.unknown,
@@ -57,7 +59,9 @@ export class DiskScanIndex {
     } catch (error) { await index.close(); throw error }
   }
   static async scan(file: string, rootPath: string, scanId: string, engine: 'native' | 'standard', read: EntryReader,
-    signal: AbortSignal, progress: (value: ScanProgress) => void): Promise<DiskScanIndex> {
+    signal: AbortSignal, progress: (value: ScanProgress) => void, options: ScanOptions = {}): Promise<DiskScanIndex> {
+    const concurrency = options.concurrency ?? 4
+    if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 16) throw new Error('Choose 1–16 directory readers.')
     const target = path.resolve(rootPath)
     if (!(await fs.stat(target)).isDirectory()) throw new Error('Choose a folder or drive to scan.')
     await fs.mkdir(path.dirname(file), { recursive: true })
@@ -103,48 +107,65 @@ export class DiskScanIndex {
           partialRoot: { ...index.result.root, size: index.result.totalSize, itemCount: Math.max(0, index.result.totalFiles + index.result.totalDirectories - 1), children, childrenLoaded: false, status: 'scanning' } })
       }
       await publish(true)
+      const excluded = new Set([file, `${file}-journal`, `${file}-wal`, `${file}-shm`].map(name => path.resolve(name).toLowerCase()))
+      const insertColumns = 'path,parent,depth,name,type,status,size,allocated,attributed,identity,modified,category,skipReason,files,unknown,searchName'
+      let values: unknown[] = []
+      const flush = async () => {
+        if (!values.length) return
+        const tuples = Array(values.length / 16).fill('(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',')
+        await index.run(`INSERT INTO nodes(${insertColumns}) VALUES ${tuples}`, values)
+        values = []
+      }
       while (!signal.aborted) {
-        const directory = await index.one('SELECT * FROM nodes WHERE type=\'directory\' AND status=\'pending\' ORDER BY id LIMIT 1')
-        if (!directory) break
-        currentPath = directory.path; index.result.totalDirectories++
-        await index.run('UPDATE nodes SET status=\'scanning\', dirs=1 WHERE id=?', [directory.id])
-        try {
-          for await (const batch of read(directory.path, signal)) {
-            if (signal.aborted) break
-            // Native readers return <=256 records; enforce this for alternative readers too.
-            for (let start = 0; start < batch.length && !signal.aborted; start += 128) {
-              const values: unknown[] = []; const tuples: string[] = []
-              for (const entry of batch.slice(start, start + 128)) {
-                if (!entry.name || entry.name === '.' || entry.name === '..' || path.basename(entry.name) !== entry.name || entry.name.includes('\0')) {
-                  recordError(directory.path, 'Invalid directory entry name.'); continue
-                }
-                const childPath = path.join(directory.path, entry.name)
-                const writingIndex = [file, `${file}-journal`, `${file}-wal`, `${file}-shm`].some(name => path.resolve(name).toLowerCase() === childPath.toLowerCase())
-                const skipped = entry.isSymlink || !!entry.skipReason || writingIndex
-                const observed = !skipped && !entry.error && !entry.isDir
-                const measured = observed && Number.isFinite(entry.allocatedSize) && entry.allocatedSize! >= 0
-                const known = measured && !!entry.fileIdentity
-                const size = observed && Number.isFinite(entry.size) && entry.size >= 0 ? entry.size : 0
-                const status = skipped ? 'skipped' : entry.error ? 'error' : entry.isDir ? 'pending' : 'complete'
-                if (skipped) index.result.skippedCount++
-                if (entry.error) recordError(path.join(directory.path, entry.name), entry.error)
-                if (observed) { index.result.totalFiles++; index.result.totalSize += size }
-                values.push(childPath, directory.id, directory.depth + 1, entry.name, entry.isDir ? 'directory' : 'file', status,
-                  size, measured ? entry.allocatedSize : null, known ? entry.allocatedSize : null, observed ? entry.fileIdentity ?? null : null,
-                  entry.mtime || 0, categoryOf(entry.name), writingIndex ? 'Active scan database excluded while it is being written.' : entry.skipReason || entry.error || (entry.isSymlink ? 'Link not followed.' : null), observed ? 1 : 0, observed && !known ? 1 : 0, entry.name.toLocaleLowerCase())
-                tuples.push('(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        // SQLite retains the full queue; JS holds only this bounded window.
+        const directories = await index.all<Pick<Row, 'id' | 'path' | 'depth'>>("SELECT id,path,depth FROM nodes WHERE type='directory' AND status='pending' ORDER BY id LIMIT 64")
+        if (!directories.length) break
+        const states = new Map<number, { status: string; reason: string | null; observed: boolean }>()
+        for await (const event of streamDirectories(directories, read, signal, concurrency, directory => {
+          index.result.totalDirectories++
+          states.set(directory.id, { status: 'partial', reason: null, observed: false })
+        })) {
+          const directory = event.directory
+          currentPath = directory.path
+          const state = states.get(directory.id)!
+          if (event.kind === 'error') {
+            if (event.error instanceof Error && /^SQLITE_/.test((event.error as Error & { code?: string }).code || '')) throw event.error
+            recordError(directory.path, String(event.error))
+            state.status = state.observed ? 'partial' : 'error'; state.reason = String(event.error)
+          } else if (event.kind === 'end') state.status = 'complete'
+          else {
+            for (const entry of event.entries) {
+              if (signal.aborted) break
+              if (!entry.name || entry.name === '.' || entry.name === '..' || path.basename(entry.name) !== entry.name || entry.name.includes('\0')) {
+                recordError(directory.path, 'Invalid directory entry name.'); continue
               }
-              if (values.length) await index.run(`INSERT INTO nodes(path,parent,depth,name,type,status,size,allocated,attributed,identity,modified,category,skipReason,files,unknown,searchName) VALUES ${tuples.join(',')}`, values)
-              await publish()
+              const childPath = path.join(directory.path, entry.name)
+              const writingIndex = excluded.has(childPath.toLowerCase())
+              const skipped = entry.isSymlink || !!entry.skipReason || writingIndex
+              const observed = !skipped && !entry.error && !entry.isDir
+              const measured = observed && Number.isFinite(entry.allocatedSize) && entry.allocatedSize! >= 0
+              const known = measured && !!entry.fileIdentity
+              const size = observed && Number.isFinite(entry.size) && entry.size >= 0 ? entry.size : 0
+              const status = skipped ? 'skipped' : entry.error ? 'error' : entry.isDir ? 'pending' : 'complete'
+              if (skipped) index.result.skippedCount++
+              if (entry.error) recordError(childPath, entry.error)
+              if (observed) { index.result.totalFiles++; index.result.totalSize += size }
+              values.push(childPath, directory.id, directory.depth + 1, entry.name, entry.isDir ? 'directory' : 'file', status,
+                size, measured ? entry.allocatedSize : null, known ? entry.allocatedSize : null, observed ? entry.fileIdentity ?? null : null,
+                entry.mtime || 0, categoryOf(entry.name), writingIndex ? 'Active scan database excluded while it is being written.' : entry.skipReason || entry.error || (entry.isSymlink ? 'Link not followed.' : null), observed ? 1 : 0, observed && !known ? 1 : 0, entry.name.toLocaleLowerCase())
+              state.observed = true
+              // Batch across small directory boundaries, not just within a single directory.
+              if (values.length >= 256 * 16) await flush()
             }
           }
-          await index.run('UPDATE nodes SET status=? WHERE id=?', [signal.aborted ? 'partial' : 'complete', directory.id])
-        } catch (error) {
-          // SQLite failures must abort the transaction, not produce a plausible incomplete index.
-          if (error instanceof Error && /^SQLITE_/.test((error as Error & { code?: string }).code || '')) throw error
-          recordError(directory.path, String(error))
-          const observed = await index.one('SELECT id FROM nodes WHERE parent=? LIMIT 1', [directory.id])
-          await index.run('UPDATE nodes SET status=?,skipReason=? WHERE id=?', [observed ? 'partial' : 'error', String(error), directory.id])
+          if (Date.now() - lastProgress >= 250) { await flush(); await publish() }
+        }
+        await flush()
+        if (states.size) {
+          const updates = [...states].flatMap(([id, state]) => [id, state.status, state.reason])
+          await index.run(`WITH states(id,status,reason) AS (VALUES ${Array(states.size).fill('(?,?,?)').join(',')})
+            UPDATE nodes SET status=(SELECT status FROM states WHERE states.id=nodes.id), dirs=1,
+              skipReason=(SELECT reason FROM states WHERE states.id=nodes.id) WHERE id IN (SELECT id FROM states)`, updates)
         }
       }
       await publish(true, 'building')
@@ -220,7 +241,7 @@ export class DiskScanIndex {
     const totalMatches = (await this.one<{ count: number }>(`SELECT COUNT(*) AS count FROM nodes WHERE ${condition}`, values))!.count
     const actualOffset = Math.min(offset, totalMatches ? Math.floor((totalMatches - 1) / limit) * limit : 0)
     const metric = request.sizeMetric === 'allocated' ? 'allocated' : 'size'
-    const rows = await this.all(`SELECT * FROM nodes WHERE ${condition} ORDER BY ${metric} IS NULL,${metric} ${request.descending === false ? 'ASC' : 'DESC'},path LIMIT ? OFFSET ?`, [...values, limit, actualOffset])
+    const rows = await this.all(`SELECT * FROM nodes WHERE ${condition} ORDER BY ${metric === 'allocated' ? 'allocated IS NULL,' : ''}${metric} ${request.descending === false ? 'ASC' : 'DESC'},path LIMIT ? OFFSET ?`, [...values, limit, actualOffset])
     const ancestors: FileNode[] = []; let current: Row | undefined = directory
     const visited = new Set<number>()
     while (current) {

@@ -1,9 +1,12 @@
 import * as path from 'path'
 import { MetadataScanner, type DirectoryEntry } from './scanner-core'
+import type { NtfsProbe } from './ntfs-journal'
 
 interface NativeAddon {
   apiVersion: number
   DirectoryCursor?: new (dirPath: string) => { read(): Promise<{ entries: DirectoryEntry[]; done: boolean }>; close(): void }
+  probeNtfs?(root: string): Promise<NtfsProbe>
+  readNtfsJournal?(root: string, journalId: string, startUsn: string): Promise<NtfsProbe & { data?: Buffer }>
   readdirWithStats(dirPath: string): Promise<DirectoryEntry[]>
   getVolumes?(): Promise<Array<{ letter: string; label: string; totalSize: number; freeSpace: number; fileSystem: string; volumeId: string; driveType: 'fixed' | 'removable' | 'network' | 'optical' | 'unknown' }>>
 }

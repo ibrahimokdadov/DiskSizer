@@ -2,6 +2,8 @@
 
 The priorities from the open-source comparison are now the development order. Version 1.1.0 implements allocation-aware inspection, global file search, and persistent storage. Optional MFT acceleration is gated on profiling and correctness comparisons; it is not part of this release.
 
+Subsequent local development on `codex/faster-index-and-ntfs` improves the database pipeline and adds a bounded journal reader/planner prototype. See the [implementation and measurements](../reviews/2026-11-03-speed-implementation.md). The measured index improvement is active in that build; automatic reconciliation and MFT scanning are not implemented. The native raw-volume probe returns access denied in the current session, so privileged validation remains a gate.
+
 | Priority | Delivered in 1.1.0 | Next acceptance gate |
 |---|---|---|
 | Trustworthy accounting | Native allocation/file identity; sparse/compressed metadata; deterministic hardlink attribution; explicit unknowns; logical/on-disk selection and explanations | Add fixtures for provider-specific cloud behavior, streams, ReFS and network volumes; never equate allocation with reclaimable space |

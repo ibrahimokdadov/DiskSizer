@@ -157,3 +157,85 @@ test('a database inside its own scan target is explicitly excluded', async t => 
   assert.equal(result.totalSize, 4); assert.equal(result.totalFiles, 1); assert.ok(result.skippedCount >= 1)
   assert.equal((await index.page({ scanId: 'self', path: f.target })).node.children.find(n => n.name === 'active.diskvision').status, 'skipped')
 })
+
+test('parallel ingestion agrees with sequential accounting across queue windows and closes all readers', async t => {
+  const f = await fixture(t)
+  let active = 0, peak = 0
+  async function* read(dir) {
+    active++; peak = Math.max(peak, active)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1))
+      if (dir === f.target) yield Array.from({ length: 145 }, (_, i) => directory(`dir-${i}`))
+      else {
+        yield [file('alias.bin', 10, 4096, 'shared'), file('unknown.bin', 7)]
+        if (dir.endsWith('dir-12')) throw Error('Disconnected after first batch')
+        yield [file('unique.bin', 20, 8192, dir)]
+      }
+    } finally { active-- }
+  }
+  const totals = []
+  for (const concurrency of [1, 4]) {
+    const index = await DiskScanIndex.scan(path.join(f.root, `${concurrency}.diskvision`), f.target, 'parallel', 'native', read,
+      new AbortController().signal, () => {}, { concurrency }); f.opened.add(index)
+    const result = await index.summary()
+    totals.push([result.totalFiles, result.totalDirectories, result.totalSize, result.root.allocatedSize, result.root.allocationUnknownFiles, result.errorCount, result.status])
+    assert.equal(active, 0)
+    assert.ok(peak <= concurrency)
+    if (concurrency === 4) assert.equal(peak, 4)
+  }
+  assert.deepEqual(totals[1], totals[0])
+  assert.deepEqual(totals[0], [434, 146, 5345, 1183744, 145, 1, 'partial'])
+})
+
+test('cancelling parallel reads drains in-flight readers and preserves partial/pending states', async t => {
+  const f = await fixture(t); const controller = new AbortController()
+  let active = 0, opened = 0
+  async function* read(dir) {
+    active++; opened++
+    try {
+      if (dir === f.target) { yield Array.from({ length: 100 }, (_, i) => directory(`dir-${i}`)); return }
+      yield [file('observed.bin', 9, 4096, dir)]
+      await new Promise(resolve => setTimeout(resolve, 5))
+      controller.abort()
+      yield [file('too-late.bin', 999)]
+    } finally { active-- }
+  }
+  const index = await DiskScanIndex.scan(f.database, f.target, 'stop', 'native', read, controller.signal, () => {}); f.opened.add(index)
+  const result = await index.summary()
+  assert.equal(active, 0); assert.equal(opened, 5)
+  assert.equal(result.status, 'cancelled'); assert.equal(result.totalDirectories, 5)
+  assert.equal(result.totalFiles, 4); assert.equal(result.totalSize, 36)
+  const page = await index.page({ scanId: 'stop', path: f.target, limit: 1000 })
+  assert.equal(page.node.children.filter(n => n.status === 'partial').length, 4)
+  assert.equal(page.node.children.filter(n => n.status === 'pending').length, 96)
+})
+
+test('database errors abort ingestion and close every parallel reader', async t => {
+  const f = await fixture(t); let active = 0
+  async function* read(dir) {
+    active++
+    try {
+      if (dir === f.target) yield [directory('A'), directory('B'), directory('C'), directory('D')]
+      else { yield [file('duplicate', 1), file('duplicate', 2)]; await new Promise(resolve => setTimeout(resolve, 1)) }
+    } finally { active-- }
+  }
+  await assert.rejects(DiskScanIndex.scan(f.database, f.target, 'failure', 'native', read, new AbortController().signal, () => {}), /SQLITE_CONSTRAINT/)
+  assert.equal(active, 0)
+  await assert.rejects(fs.stat(f.database), { code: 'ENOENT' })
+})
+
+test('logical sorting uses its index; allocation unknowns remain last in either direction', async t => {
+  const f = await fixture(t)
+  async function* read() { yield [file('unknown', 100), file('small', 1, 4096, 'a'), file('large', 2, 8192, 'b')] }
+  const index = await DiskScanIndex.scan(f.database, f.target, 'order', 'native', read, new AbortController().signal, () => {}); f.opened.add(index)
+  const sql = []; const original = index.all.bind(index)
+  index.all = async (statement, values) => { sql.push([statement, values]); return original(statement, values) }
+  await index.page({ scanId: 'order', path: f.target, scope: 'scan' })
+  const [statement, values] = sql.find(([query]) => query.startsWith('SELECT * FROM nodes WHERE') && query.includes('ORDER BY'))
+  const plan = await original(`EXPLAIN QUERY PLAN ${statement}`, values)
+  assert.ok(!plan.some(row => row.detail.includes('TEMP B-TREE')), JSON.stringify(plan))
+  for (const descending of [true, false]) {
+    const page = await index.page({ scanId: 'order', path: f.target, scope: 'scan', sizeMetric: 'allocated', descending })
+    assert.deepEqual(page.node.children.map(n => n.name), descending ? ['large', 'small', 'unknown'] : ['small', 'large', 'unknown'])
+  }
+})
