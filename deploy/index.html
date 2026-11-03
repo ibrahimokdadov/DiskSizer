@@ -1,793 +1,2032 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DiskSizer — Understand Your Disk Space</title>
-  <meta name="description" content="Find large files, preview what they contain, and understand logical and on-disk sizes. DiskSizer for Windows includes global search, visual maps, and saved scans." />
-  <meta name="robots" content="index, follow" />
-  <link rel="canonical" href="https://disksizer.whhite.com/" />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://disksizer.whhite.com/" />
-  <meta property="og:title" content="DiskSizer — Understand Your Disk Space" />
-  <meta property="og:description" content="Find large files. Preview before cleanup. Explore on-disk sizes and saved scans with DiskSizer for Windows." />
-  <meta property="og:image" content="https://disksizer.whhite.com/og-image-v1.1.svg" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="DiskSizer" />
-  <meta name="twitter:description" content="A clearer view of your storage: largest files, previews, on-disk accounting, and saved scans for Windows." />
-  <meta name="twitter:image" content="https://disksizer.whhite.com/og-image-v1.1.svg" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"DiskSizer","softwareVersion":"1.1.0","description":"Windows disk space explorer with global search, file previews, allocation accounting and saved scans.","url":"https://disksizer.whhite.com/","downloadUrl":"https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows 10 or 11 (x64)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Ibrahim Okdadov"}}
-</script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg:     #0B0B10;
-      --bg2:    #101016;
-      --bg3:    #17171F;
-      --bg4:    #1E1E29;
-      --border: #1E1E2C;
-      --border2:#28283A;
-      --text:   #CDD5E8;
-      --text2:  #96A3BD;
-      --text3:  #73809A;
-      --violet: #7C3AED;
-      --violet2:#A78BFA;
-      --vdim:   rgba(124,58,237,0.12);
-      --vglow:  0 0 30px rgba(124,58,237,0.22), 0 0 70px rgba(124,58,237,0.07);
-      --amber:  #F59E0B;
-      --adim:   rgba(245,158,11,0.1);
-      --green:  #10B981;
-      --gdim:   rgba(16,185,129,0.1);
-      --blue:   #3B82F6;
-      --purple: #8B5CF6;
-      --pink:   #EC4899;
-      --orange: #F97316;
-      --red:    #EF4444;
-      --cyan:   #38BDF8;
-    }
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-    html { scroll-behavior:smooth; overflow-x:clip; }
-    section { scroll-margin-top:76px; }
-    .hero-grid > *, .perf-grid > * { min-width:0; }
-    .bench-context a { color:var(--violet2); text-underline-offset:4px; }
-    .chart-caption { position:absolute; left:0; bottom:-12px; color:var(--text2); font-size:11px; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 15px;
-      line-height: 1.7;
-      overflow-x: hidden;
-    }
-
-    /* Subtle noise overlay */
-    body::before {
-      content:'';
-      position:fixed; inset:0;
-      pointer-events:none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-      opacity:0.018;
-      z-index:9999;
-    }
-
-    /* ── Layout ── */
-    .container {
-      max-width: 1140px;
-      margin: 0 auto;
-      padding: 0 28px;
-      position: relative; z-index:1;
-    }
-
-    /* ── Nav ── */
-    nav {
-      position: sticky; top:0; z-index:200;
-      background: rgba(11,11,16,0.85);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-    }
-    .nav-inner {
-      display:flex; align-items:center; justify-content:space-between;
-      height:58px;
-    }
-    .logo {
-      display:flex; align-items:center; gap:10px;
-      text-decoration:none;
-      font-family:'Outfit', sans-serif;
-      font-size:17px; font-weight:700;
-      color:#E0E8FF;
-    }
-    .logo-icon {
-      width:30px; height:30px;
-      background: linear-gradient(135deg, var(--violet), var(--violet2));
-      border-radius:7px;
-      display:flex; align-items:center; justify-content:center;
-      font-size:14px;
-      box-shadow: 0 4px 12px rgba(124,58,237,0.35);
-    }
-    .nav-links { display:flex; gap:4px; list-style:none; }
-    .nav-links a {
-      color:var(--text2); text-decoration:none;
-      font-size:13px; padding:6px 12px; border-radius:6px;
-      transition: color .2s, background .2s;
-    }
-    .nav-links a:hover { color:var(--text); background:var(--bg3); }
-    .nav-gh {
-      display:flex; align-items:center; gap:6px;
-      color:var(--text2) !important;
-      border:1px solid var(--border2) !important;
-      transition: all .2s !important;
-    }
-    .nav-gh:hover {
-      color:var(--violet2) !important;
-      border-color:rgba(167,139,250,0.4) !important;
-      background:var(--vdim) !important;
-    }
-
-    /* ── Hero ── */
-    .hero {
-      min-height: calc(100vh - 58px);
-      display:flex; align-items:center;
-      padding: 64px 0;
-    }
-    .hero-grid {
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:60px; align-items:center; width:100%;
-    }
-    .hero-eyebrow {
-      display:inline-flex; align-items:center; gap:8px;
-      font-size:12px; font-weight:500;
-      letter-spacing:.12em; text-transform:uppercase;
-      color:var(--violet2);
-      background:var(--vdim);
-      border:1px solid rgba(167,139,250,0.2);
-      padding:5px 12px; border-radius:20px;
-      margin-bottom:24px;
-    }
-    .hero-eyebrow::before {
-      content:'◆'; font-size:8px;
-    }
-    h1 {
-      font-family:'Outfit', sans-serif;
-      font-size: clamp(38px,4vw,62px);
-      font-weight:900;
-      line-height:1.06; letter-spacing:-.03em;
-      color:#E8EEFF;
-      margin-bottom:22px;
-    }
-    h1 span { color:var(--violet2); }
-    .hero-sub {
-      font-size:15px; color:var(--text2);
-      line-height:1.8; margin-bottom:36px;
-      max-width:430px;
-    }
-    .ctas { display:flex; gap:12px; flex-wrap:wrap; }
-    .btn {
-      display:inline-flex; align-items:center; gap:8px;
-      font-family:'DM Sans', sans-serif;
-      font-size:14px; font-weight:500;
-      padding:12px 24px; border-radius:8px;
-      text-decoration:none; transition:all .2s;
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--violet), #5B21B6);
-      color:#fff;
-      box-shadow: 0 4px 20px rgba(124,58,237,0.3);
-    }
-    .btn-primary:hover {
-      transform:translateY(-2px);
-      box-shadow: var(--vglow);
-    }
-    .btn-outline {
-      color:var(--text2);
-      border:1px solid var(--border2);
-    }
-    .btn-outline:hover { color:var(--text); background:var(--bg3); }
-
-    /* ── Sunburst ── */
-    .sunburst-wrap {
-      display:flex; justify-content:center; align-items:center;
-      position:relative;
-    }
-    .sunburst-wrap::before {
-      content:'';
-      position:absolute; inset:-60px;
-      background: radial-gradient(ellipse at center,
-        rgba(124,58,237,0.12) 0%, transparent 65%);
-      pointer-events:none; border-radius:50%;
-    }
-    #sunburst-svg {
-      width:100%; max-width:480px;
-      filter: drop-shadow(0 0 30px rgba(124,58,237,0.15));
-    }
-    .sb-segment {
-      transition: opacity .2s, filter .2s;
-      cursor:default;
-    }
-    .sb-segment:hover {
-      opacity:0.85;
-      filter: brightness(1.2);
-    }
-    @keyframes sb-spin {
-      from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
-    }
-    @keyframes sb-in {
-      from { opacity:0; transform:scale(0.6); }
-      to   { opacity:1; transform:scale(1); }
-    }
-    .sb-group {
-      transform-origin: 240px 240px;
-      animation: sb-in .8s cubic-bezier(0.34,1.56,0.64,1) both;
-    }
-    .sb-group-1 { animation-delay:.1s; }
-    .sb-group-2 { animation-delay:.25s; }
-    .sb-group-3 { animation-delay:.4s; }
-    .sb-rotate {
-      transform-origin: 240px 240px;
-      animation: sb-spin 80s linear infinite;
-    }
-    .sb-legend {
-      position:absolute; bottom:-8px; right:0;
-      display:flex; flex-direction:column; gap:5px;
-    }
-    .sb-legend-item {
-      display:flex; align-items:center; gap:6px;
-      font-size:11px; color:var(--text2);
-    }
-    .sb-legend-dot {
-      width:8px; height:8px; border-radius:2px; flex-shrink:0;
-    }
-
-    /* ── Stats strip ── */
-    .stats {
-      border-top:1px solid var(--border);
-      border-bottom:1px solid var(--border);
-      padding:20px 0;
-    }
-    .stats-row {
-      display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px;
-    }
-    .stat {
-      display:flex; align-items:center; gap:10px;
-      font-size:13px; color:var(--text2);
-    }
-    .stat-icon { color:var(--violet2); font-size:16px; }
-    .stat strong { color:var(--text); font-weight:500; }
-
-    /* ── Sections ── */
-    .section { padding:88px 0; }
-    .sep { border:none; border-top:1px solid var(--border); }
-    .section-eye {
-      font-size:11px; font-weight:500;
-      letter-spacing:.15em; text-transform:uppercase;
-      color:var(--violet2); margin-bottom:12px;
-    }
-    h2 {
-      font-family:'Outfit', sans-serif;
-      font-size:clamp(30px,3vw,44px);
-      font-weight:800; letter-spacing:-.025em;
-      color:#E8EEFF; margin-bottom:48px;
-      line-height:1.12;
-    }
-
-    /* ── Feature cards ── */
-    .feat-grid {
-      display:grid; grid-template-columns:repeat(3,1fr); gap:2px;
-      border:1px solid var(--border);
-    }
-    .feat {
-      padding:36px 30px;
-      border-right:1px solid var(--border);
-      transition:background .25s;
-    }
-    .feat:last-child { border-right:none; }
-    .feat:hover { background:var(--bg2); }
-    .feat-icon {
-      width:42px; height:42px;
-      background:var(--vdim);
-      border:1px solid rgba(124,58,237,0.2);
-      border-radius:10px;
-      display:flex; align-items:center; justify-content:center;
-      font-size:18px; margin-bottom:20px;
-    }
-    .feat h3 {
-      font-family:'Outfit', sans-serif;
-      font-size:15px; font-weight:700;
-      color:#E8EEFF; margin-bottom:10px;
-    }
-    .feat p { font-size:13px; color:var(--text2); line-height:1.85; }
-
-    /* ── Treemap mockup ── */
-    .treemap-demo {
-      background:var(--bg2);
-      border:1px solid var(--border);
-      border-radius:12px;
-      overflow:hidden;
-      padding:16px;
-    }
-    .treemap-bar {
-      background:var(--bg3);
-      border:1px solid var(--border);
-      border-radius:8px 8px 0 0;
-      padding:10px 14px;
-      display:flex; align-items:center; gap:8px;
-      margin-bottom:12px;
-    }
-    .treemap-dot { width:8px; height:8px; border-radius:50%; }
-    .treemap-path {
-      font-family:'DM Sans', sans-serif;
-      font-size:11px; color:var(--text2);
-    }
-    .treemap-grid {
-      display:grid;
-      grid-template-columns: 3fr 2fr 1.5fr;
-      grid-template-rows: 1fr 1fr;
-      gap:3px;
-      height:180px;
-      border-radius:6px; overflow:hidden;
-    }
-    .tm-cell {
-      display:flex; flex-direction:column;
-      padding:10px 12px;
-      font-size:11px;
-      border-radius:3px;
-      transition:filter .2s;
-      cursor:default;
-    }
-    .tm-cell:hover { filter:brightness(1.15); }
-    .tm-cell .tm-name { color:rgba(255,255,255,0.9); font-weight:600; font-size:12px; }
-    .tm-cell .tm-size { color:rgba(255,255,255,0.55); margin-top:2px; }
-    .tm-span-2 { grid-row: span 2; }
-
-    /* ── Perf section ── */
-    .perf-section {
-      padding:80px 0;
-      position:relative;
-    }
-    .perf-section::before {
-      content:'';
-      position:absolute; inset:0;
-      background: radial-gradient(ellipse at 30% 50%,
-        rgba(124,58,237,0.06) 0%, transparent 60%);
-      pointer-events:none;
-    }
-    .perf-grid {
-      display:grid; grid-template-columns:1fr 1fr;
-      gap:60px; align-items:center; margin-top:0;
-    }
-    .metrics {
-      display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px;
-    }
-    .metric {
-      background:var(--bg2);
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:24px 20px;
-      text-align:center;
-      position:relative; overflow:hidden;
-    }
-    .metric::before {
-      content:'';
-      position:absolute; top:0; left:0; right:0;
-      height:2px;
-    }
-    .metric.m-amber::before { background:var(--amber); }
-    .metric.m-violet::before { background:var(--violet); }
-    .metric.m-green::before  { background:var(--green); }
-    .metric-val {
-      font-family:'Outfit', sans-serif;
-      font-size:36px; font-weight:900;
-      line-height:1; margin-bottom:6px;
-      letter-spacing:-.02em;
-    }
-    .m-amber .metric-val { color:var(--amber); }
-    .m-violet .metric-val { color:var(--violet2); }
-    .m-green  .metric-val { color:var(--green); }
-    .metric-label {
-      font-size:11px; color:var(--text2);
-      text-transform:uppercase; letter-spacing:.08em;
-    }
-    .bench-context h3 {
-      font-family:'Outfit', sans-serif;
-      font-size:22px; font-weight:700;
-      color:#E8EEFF; margin-bottom:14px;
-    }
-    .bench-context p {
-      font-size:13px; color:var(--text2);
-      line-height:1.85; margin-bottom:14px;
-    }
-    .bench-table {
-      width:100%; border-collapse:collapse;
-      font-size:12px; margin-top:16px;
-    }
-    .bench-table th {
-      text-align:left; color:var(--text3);
-      font-size:10px; letter-spacing:.08em;
-      text-transform:uppercase;
-      padding:8px 12px; border-bottom:1px solid var(--border);
-    }
-    .bench-table td {
-      padding:10px 12px; border-bottom:1px solid var(--border);
-    }
-    .bench-table tr:last-child td { border-bottom:none; }
-    .before { color:var(--text2); }
-    .after  { color:var(--green); font-weight:500; }
-    .gain   { color:var(--amber); font-weight:600; }
-
-    /* ── Stack ── */
-    .stack-section { padding:80px 0; }
-    .stack-grid {
-      display:grid; grid-template-columns:repeat(3,1fr); gap:12px;
-      margin-top:8px;
-    }
-    .stack-item {
-      background:var(--bg2);
-      border:1px solid var(--border);
-      border-radius:10px;
-      padding:18px 20px;
-      display:flex; align-items:center; gap:14px;
-      transition:border-color .2s, background .2s;
-    }
-    .stack-item:hover {
-      border-color:var(--border2);
-      background:var(--bg3);
-    }
-    .stack-badge {
-      width:36px; height:36px; border-radius:8px;
-      display:flex; align-items:center; justify-content:center;
-      font-size:14px; flex-shrink:0;
-    }
-    .stack-name {
-      font-family:'Outfit', sans-serif;
-      font-size:14px; font-weight:600; color:#E8EEFF;
-    }
-    .stack-role { font-size:12px; color:var(--text2); }
-
-    /* ── CTA ── */
-    .cta {
-      padding:100px 0; text-align:center; position:relative;
-    }
-    .cta::before {
-      content:'';
-      position:absolute; inset:0;
-      background:radial-gradient(ellipse at center,
-        rgba(124,58,237,0.08) 0%, transparent 55%);
-      pointer-events:none;
-    }
-    .cta h2 { margin-bottom:14px; }
-    .cta p { font-size:14px; color:var(--text2); margin-bottom:36px; }
-    .cta .ctas { justify-content:center; }
-
-    /* ── Footer ── */
-    footer { padding:22px 0; border-top:1px solid var(--border); }
-    .foot-row {
-      display:flex; justify-content:space-between; align-items:center;
-      font-size:12px; color:var(--text3);
-    }
-    .foot-links { display:flex; gap:20px; }
-    .foot-links a {
-      color:var(--text3); text-decoration:none; transition:color .2s;
-    }
-    .foot-links a:hover { color:var(--text2); }
-
-    /* ── Animations ── */
-    @keyframes rise {
-      from { opacity:0; transform:translateY(20px); }
-      to   { opacity:1; transform:translateY(0); }
-    }
-    .rise  { animation:rise .6s ease both; }
-    .d1 { animation-delay:.08s; }
-    .d2 { animation-delay:.18s; }
-    .d3 { animation-delay:.28s; }
-    .d4 { animation-delay:.38s; }
-    .d5 { animation-delay:.48s; }
-
-    /* ── Responsive ── */
-    @media (max-width:860px) {
-      .hero { padding:48px 0; min-height:auto; }
-      .hero-grid { grid-template-columns:1fr; gap:48px; }
-      .feat-grid { grid-template-columns:1fr; }
-      .feat { border-right:none; border-bottom:1px solid var(--border); }
-      .feat:last-child { border-bottom:none; }
-      .perf-grid { grid-template-columns:1fr; gap:40px; }
-      .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
-      .stack-grid { grid-template-columns:repeat(2,1fr); }
-      .nav-links { display:none; }
-      .stats-row { gap:12px; }
-    }
-    @media (max-width:500px) {
-      .metrics { grid-template-columns:1fr; }
-      .stack-grid { grid-template-columns:1fr; }
-    }
-  </style>
-</head>
-<body>
-
-  <!-- ── Nav ── -->
-  <nav>
-    <div class="container">
-      <div class="nav-inner">
-        <a href="/" class="logo">
-          <span class="logo-icon">◈</span>
-          DiskSizer
-        </a>
-        <ul class="nav-links">
-          <li><a href="#features">Features</a></li>
-          <li><a href="#performance">Performance</a></li>
-          <li><a href="#stack">Get started</a></li>
-          <li>
-            <a href="https://github.com/ibrahimokdadov/DiskSizer" class="nav-gh" target="_blank" rel="noopener">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-              </svg>
-              GitHub
-            </a>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </nav>
-
-  <!-- ── Hero ── -->
-  <section class="hero">
-    <div class="container">
-      <div class="hero-grid">
-
-        <!-- Copy -->
-        <div>
-          <p class="hero-eyebrow rise">Windows Disk Analyzer</p>
-          <h1 class="rise d1">See what's eating<br>your <span>disk space.</span></h1>
-          <p class="hero-sub rise d2">Find the largest files, preview what they contain, and see how much space they occupy. Search your whole scan and save it for another look.</p>
-          <div class="ctas rise d3">
-            <a href="https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip" class="btn btn-primary" target="_blank" rel="noopener">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-              </svg>
-              Download Windows ZIP
-            </a>
-            <a href="#features" class="btn btn-outline rise d4">Explore features</a>
-          </div>
-        </div>
-
-        <!-- Sunburst -->
-        <div class="sunburst-wrap rise d2" aria-label="Illustrative disk usage chart">
-          <svg id="sunburst-svg" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <filter id="glow">
-                <feGaussianBlur stdDeviation="4" result="blur"/>
-                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-            </defs>
-            <!-- Generated by JS below -->
-            <g id="sb-rings"></g>
-            <!-- Center hole label -->
-            <circle cx="240" cy="240" r="54" fill="#0B0B10" stroke="#1E1E2C" stroke-width="1.5"/>
-            <text x="240" y="235" text-anchor="middle" font-family="'Outfit', sans-serif" font-size="11" font-weight="700" fill="#7C3AED">DISK</text>
-            <text x="240" y="252" text-anchor="middle" font-family="'DM Sans', sans-serif" font-size="10" fill="#60709A">USAGE</text>
-          </svg>
-          <div class="sb-legend" id="sb-legend"></div><p class="chart-caption">Illustrative data</p>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Stats strip ── -->
-  <div class="stats">
-    <div class="container">
-      <div class="stats-row">
- <div class="stat"><span class="stat-icon">◈</span> <strong>Windows</strong> 10 &amp; 11</div>
- <div class="stat"><span class="stat-icon">▦</span> <strong>Visual</strong> disk maps</div>
- <div class="stat"><span class="stat-icon">⌕</span> <strong>Global</strong> file search</div>
- <div class="stat"><span class="stat-icon">↓</span> <strong>Saved</strong> scans</div>
- <div class="stat"><span class="stat-icon">◆</span> <strong>v1.1.0</strong> available</div>
- </div></div></div>
-
-  <!-- ── Features ── -->
-  <section class="section" id="features">
-    <div class="container">
-      <p class="section-eye">Features</p>
-      <h2>Everything to understand<br>your storage at a glance</h2>
-      <div class="feat-grid">
-<div class="feat"><div class="feat-icon">⌕</div><h3>Find the files that matter</h3><p>Search all scanned files by name, type, or modification age. Sort by logical size or on-disk allocation and open any containing folder.</p></div>
-<div class="feat"><div class="feat-icon">◉</div><h3>See the bigger picture</h3><p>Explore your storage in a largest-first list, treemap, or sunburst. Drill into folders while smaller map entries remain available in the list.</p></div>
-<div class="feat"><div class="feat-icon">▷</div><h3>Preview before cleanup</h3><p>Select a file to inspect its details and supported media previews. Open it in Explorer and review it before choosing to recycle it.</p></div>
-<div class="feat"><div class="feat-icon">◈</div><h3>Understand on-disk sizes</h3><p>See logical size and measured allocation, with shared hardlinks counted once in folder totals. Unknown values stay visible; allocation is not a promise of reclaimable space.</p></div>
-<div class="feat"><div class="feat-icon">↓</div><h3>Return to a saved scan</h3><p>Scans save automatically. Export a copy or reopen a dated, read-only result. Rescan when you need current information or want to delete files.</p></div>
-<div class="feat"><div class="feat-icon">◷</div><h3>Stay in control</h3><p>Follow live counts and stop a scan when needed. Partial results and inaccessible folders are identified so you can see what was covered.</p></div>
-</div>
-<div class="treemap-demo">
-          <div class="treemap-bar">
-            <div class="treemap-dot" style="background:#7C3AED"></div>
-            <span class="treemap-path">Illustrative data — Treemap view</span>
-          </div>
-          <div class="treemap-grid" id="treemap-grid">
-            <!-- Rendered by JS -->
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Performance ── -->
-  <hr class="sep">
-  <section class="perf-section" id="performance">
- <div class="container"><div class="perf-grid"><div>
- <p class="section-eye">Performance</p><h2 style="margin-bottom:24px">Measured with<br>the details attached</h2>
- <div class="metrics"><div class="metric m-amber"><div class="metric-val">~2.2s</div><div class="metric-label">observed scan time<br>on our test folder</div></div><div class="metric m-violet"><div class="metric-val">14,950</div><div class="metric-label">files in the<br>measured workload</div></div></div>
- </div><div class="bench-context"><h3>A local measurement, with limits</h3>
- <p>Version 1.1.0 scanned a development dependency folder with 14,950 files and 1,895 directories in 2.197, 2.188, and 2.100 seconds on our Windows test machine. These repeated runs did not control cold-cache conditions.</p>
- <p>The timings include allocation metadata and saved indexing, and exclude drive discovery and final UI rendering. They are not a whole-drive estimate or a comparison with other disk analyzers.</p>
- <p>Saved indexing keeps file records out of the JavaScript heap, but uses additional disk space and write time. Scan speed depends on your drive, file count, permissions, and cache state.</p>
- <p><a href="https://github.com/ibrahimokdadov/DiskSizer/blob/master/docs/plans/2026-11-03-adopted-priorities.md" target="_blank" rel="noopener">Read the measurements and tradeoffs →</a></p>
- </div></div></div></section>
-
-  <!-- ── Stack ── -->
-  <hr class="sep">
-  <section class="section" id="stack"><div class="container"><p class="section-eye">Getting started</p><h2>Your storage,<br>in three steps</h2><div class="feat-grid"><div class="feat"><h3>1. Open DiskSizer</h3><p>Download the Windows x64 ZIP, extract the entire archive, and run DiskSizer.exe. This build is unsigned.</p></div><div class="feat"><h3>2. Choose a location</h3><p>Select a drive or folder. Normal scans need no administrator access; inaccessible locations are reported.</p></div><div class="feat"><h3>3. Explore and review</h3><p>Find large files, inspect previews, and save a copy of your scan. Saved scans occupy disk space until you remove them.</p></div></div></div></section>
-
-  <!-- ── CTA ── -->
-  <hr class="sep">
-  <section class="cta">
-    <div class="container">
-      <h2>Know your disk.<br>Choose what stays.</h2>
-      <p>DiskSizer 1.1.0 · Windows 10 &amp; 11 · x64</p>
-      <div class="ctas">
-        <a href="https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip" class="btn btn-primary" target="_blank" rel="noopener">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-          </svg>
-          Download Windows ZIP
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Footer ── -->
-  <footer>
-    <div class="container">
-      <div class="foot-row">
-        <span>DiskSizer — a clearer view of your storage</span>
-        <div class="foot-links">
-          <a href="https://github.com/ibrahimokdadov/DiskSizer" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://github.com/ibrahimokdadov/DiskSizer/issues" target="_blank" rel="noopener">Issues</a>
-          <a href="/llms.txt">llms.txt</a>
-        </div>
-      </div>
-    </div>
-  </footer>
-
-  <script>
-  // ── Sunburst generator ───────────────────────────────────────────────────
-  (function() {
-    const CX = 240, CY = 240;
-    const GAP = 1.5; // degrees gap between segments
-
-    function toRad(deg) { return (deg - 90) * Math.PI / 180; }
-
-    function arcPath(cx, cy, r1, r2, a1, a2) {
-      const large = (a2 - a1) > 180 ? 1 : 0;
-      const p = (r, a) => [cx + r * Math.cos(toRad(a)), cy + r * Math.sin(toRad(a))];
-      const [x1, y1] = p(r2, a1), [x2, y2] = p(r2, a2);
-      const [x3, y3] = p(r1, a2), [x4, y4] = p(r1, a1);
-      return `M${x1},${y1} A${r2},${r2},0,${large},1,${x2},${y2} L${x3},${y3} A${r1},${r1},0,${large},0,${x4},${y4} Z`;
-    }
-
-    function buildRing(segments, r1, r2, totalDeg, startDeg) {
-      const total = segments.reduce((s, x) => s + x.pct, 0);
-      let angle = startDeg;
-      const paths = [];
-      segments.forEach((seg, i) => {
-        const span = (seg.pct / total) * totalDeg - GAP;
-        if (span > 0) {
-          paths.push({ d: arcPath(CX, CY, r1, r2, angle + GAP/2, angle + GAP/2 + span), color: seg.color, label: seg.label });
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f6f7f2" />
+    <title>DiskSizer — Make room for what matters</title>
+    <meta
+      name="description"
+      content="A clearer view of your Windows storage. Find large files, preview before cleanup, understand on-disk sizes, and return to saved scans with DiskSizer."
+    />
+    <link rel="canonical" href="https://disksizer.whhite.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://disksizer.whhite.com/" />
+    <meta
+      property="og:title"
+      content="DiskSizer — Make room for what matters"
+    />
+    <meta
+      property="og:description"
+      content="Find the big files. See what’s inside. Choose what stays. A clearer view of your Windows storage."
+    />
+    <meta
+      property="og:image"
+      content="https://disksizer.whhite.com/assets/social-20261103.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="DiskSizer — Make room for what matters"
+    />
+    <meta
+      name="twitter:description"
+      content="Find large files, preview before cleanup, and explore your storage with confidence."
+    />
+    <meta
+      name="twitter:image"
+      content="https://disksizer.whhite.com/assets/social-20261103.png"
+    />
+    <link rel="icon" type="image/svg+xml" href="/assets/icon-20261103.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "DiskSizer",
+        "softwareVersion": "1.1.0",
+        "description": "Windows disk space explorer with global search, file previews, allocation accounting and saved scans.",
+        "url": "https://disksizer.whhite.com/",
+        "downloadUrl": "https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Windows 10 or 11 (x64)",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "Ibrahim Okdadov" }
+      }
+    </script>
+    <style>
+      :root {
+        --paper: #f6f7f2;
+        --ink: #182b24;
+        --muted: #5e6b63;
+        --green: #225b45;
+        --deep: #112e24;
+        --line: #dce2d8;
+        --lime: #d4eb94;
+        --display: "Space Grotesk", sans-serif;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: "Inter", sans-serif;
+        font-size: 15px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 100px;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+      }
+      button,
+      a,
+      summary {
+        -webkit-tap-highlight-color: transparent;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      summary:focus-visible,
+      [tabindex]:focus-visible {
+        outline: 3px solid #619241;
+        outline-offset: 5px;
+      }
+      img,
+      svg {
+        display: block;
+        max-width: 100%;
+      }
+      h1,
+      h2,
+      h3,
+      p,
+      figure {
+        margin: 0;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--display);
+        font-weight: 500;
+      }
+      h2 {
+        font-size: clamp(34px, 4vw, 52px);
+        letter-spacing: -2px;
+        line-height: 1.12;
+      }
+      .container {
+        width: min(1160px, calc(100% - 80px));
+        margin-inline: auto;
+      }
+      .icon {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.65;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      .skip-link {
+        position: fixed;
+        z-index: 200;
+        left: 20px;
+        top: -80px;
+        padding: 12px 20px;
+        background: var(--deep);
+        color: white;
+        border-radius: 8px;
+      }
+      .skip-link:focus {
+        top: 15px;
+      }
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(246, 247, 242, 0.96);
+        border-bottom: 1px solid var(--line);
+        backdrop-filter: blur(12px);
+      }
+      .nav {
+        height: 82px;
+        display: flex;
+        align-items: center;
+        gap: 34px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 11px;
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 23px;
+        letter-spacing: -1px;
+      }
+      .brand-mark {
+        width: 35px;
+        height: 35px;
+        padding: 7px;
+        background: var(--green);
+        border-radius: 10px;
+        color: var(--lime);
+      }
+      .nav-links {
+        margin-left: auto;
+        display: flex;
+        gap: 29px;
+        align-items: center;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .nav-links a {
+        color: var(--muted);
+      }
+      .nav-links a:hover {
+        color: var(--green);
+      }
+      .nav-source {
+        display: inline-flex;
+        gap: 7px;
+        align-items: center;
+      }
+      .nav-source svg {
+        width: 16px;
+        height: 16px;
+      }
+      .button {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        padding: 15px 22px;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        font-size: 14px;
+        line-height: 1.4;
+        font-weight: 600;
+        transition:
+          background 0.2s,
+          transform 0.2s;
+      }
+      .button:hover {
+        transform: translateY(-2px);
+      }
+      .button-primary {
+        background: var(--green);
+        color: white;
+        box-shadow: 0 3px 0 #153e2f;
+      }
+      .button-primary:hover {
+        background: #174b37;
+      }
+      .button-quiet {
+        border-color: var(--line);
+        background: transparent;
+      }
+      .button-quiet:hover {
+        background: #eaf0e5;
+      }
+      .nav-download {
+        padding: 10px 16px;
+        font-size: 12px;
+        box-shadow: none;
+      }
+      .menu-toggle {
+        display: none;
+        border: 0;
+        background: none;
+        padding: 8px;
+      }
+      .eyebrow {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.9px;
+        color: var(--green);
+      }
+      .eyebrow .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .hero {
+        padding: 80px 0 62px;
+      }
+      .hero-layout {
+        display: grid;
+        grid-template-columns: 1.18fr 1fr;
+        gap: 64px;
+        align-items: center;
+      }
+      .release-pill {
+        display: inline-flex;
+        gap: 9px;
+        align-items: center;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--green);
+        margin-bottom: 25px;
+      }
+      .release-pill span:first-child {
+        border: 1px solid #c6d7bc;
+        border-radius: 99px;
+        padding: 4px 9px;
+        background: #edf3e5;
+      }
+      .release-pill .icon {
+        width: 13px;
+        height: 13px;
+      }
+      h1 {
+        font-size: clamp(55px, 6.4vw, 82px);
+        line-height: 1.02;
+        letter-spacing: -5px;
+      }
+      h1 .soft {
+        color: #5b7b62;
+      }
+      .hero-description {
+        margin-top: 25px;
+        max-width: 435px;
+        font-size: 16px;
+        color: var(--muted);
+        line-height: 1.8;
+      }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 11px;
+        margin-top: 30px;
+      }
+      .download-note {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .download-note .icon {
+        width: 13px;
+        height: 13px;
+      }
+      .disk-art {
+        position: relative;
+        padding: 25px;
+        background: #eaeee3;
+        border: 1px solid #dce3d3;
+        border-radius: 24px;
+        transform: rotate(2deg);
+      }
+      .art-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 17px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 1.2px;
+        color: #526451;
+      }
+      .art-heading .icon {
+        width: 16px;
+        height: 16px;
+      }
+      .art-map {
+        height: 288px;
+        display: grid;
+        grid-template-columns: 1.2fr 0.75fr 0.7fr;
+        grid-template-rows: 1.05fr 1fr 0.75fr;
+        grid-template-areas: "videos videos projects" "videos videos archives" "photos audio docs";
+        gap: 6px;
+      }
+      .art-block {
+        padding: 16px;
+        border-radius: 9px;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+      }
+      .art-block .icon {
+        width: 22px;
+        height: 22px;
+      }
+      .art-block span {
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .art-videos {
+        grid-area: videos;
+        background: #28614a;
+        color: #e5f0df;
+        position: relative;
+      }
+      .art-videos::after {
+        content: "";
+        width: 200px;
+        height: 200px;
+        border: 1px solid #a5c79b40;
+        border-radius: 50%;
+        position: absolute;
+        left: 55px;
+        top: 40px;
+        box-shadow:
+          0 0 0 30px #a5c79b10,
+          0 0 0 60px #a5c79b0a;
+      }
+      .art-projects {
+        grid-area: projects;
+        background: #caddb7;
+      }
+      .art-archives {
+        grid-area: archives;
+        background: #dcebc8;
+      }
+      .art-photos {
+        grid-area: photos;
+        background: #c6d0e0;
+      }
+      .art-audio {
+        grid-area: audio;
+        background: #edd9b0;
+      }
+      .art-docs {
+        grid-area: docs;
+        background: #d8dfd2;
+      }
+      .art-caption {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 16px;
+        color: #63705d;
+        font-size: 10px;
+      }
+      .art-tag {
+        position: absolute;
+        left: -23px;
+        bottom: 36px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 13px 17px;
+        background: white;
+        border: 1px solid #dbe2d4;
+        border-radius: 11px;
+        box-shadow: 0 10px 30px #1e3e2310;
+        transform: rotate(-2deg);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .art-tag .icon {
+        padding: 4px;
+        width: 25px;
+        height: 25px;
+        background: #ecf2e4;
+        color: var(--green);
+        border-radius: 50%;
+      }
+      .promise-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        margin-top: 64px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
+      }
+      .promise {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .promise .icon {
+        width: 16px;
+        height: 16px;
+        color: var(--green);
+      }
+      .product-section {
+        padding: 45px 0 88px;
+      }
+      .section-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 30px;
+        margin-bottom: 28px;
+      }
+      .section-heading .eyebrow {
+        margin-bottom: 14px;
+      }
+      .section-heading h2 {
+        font-size: 36px;
+        letter-spacing: -1.7px;
+      }
+      .section-heading p {
+        max-width: 320px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .showcase {
+        background: var(--deep);
+        border-radius: 20px;
+        padding: 24px 24px 16px;
+        box-shadow: 0 20px 55px #1a3d1810;
+      }
+      .preview-tabs {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 19px;
+      }
+      .preview-tab {
+        background: transparent;
+        color: #b0c4b8;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 10px 16px;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .preview-tab .icon {
+        width: 16px;
+        height: 16px;
+      }
+      .preview-tab[aria-selected="true"] {
+        color: #ebf3e8;
+        background: #294c3c;
+        border-color: #3e6150;
+      }
+      .preview-tab:hover {
+        color: white;
+        background: #254635;
+      }
+      .showcase-version {
+        margin-left: auto;
+        color: #a6bdb0;
+        font-size: 10px;
+        font-family: var(--display);
+      }
+      .screen {
+        border: 1px solid #52735f;
+        border-radius: 10px;
+        background: #0e141d;
+        overflow: hidden;
+        aspect-ratio: 14/9;
+        position: relative;
+      }
+      .screen img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .screen img[hidden] {
+        display: none;
+      }
+      .preview-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        padding-top: 15px;
+        font-size: 10px;
+        color: #a8bdb0;
+      }
+      .preview-footer a {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        color: #dbe8d9;
+        white-space: nowrap;
+      }
+      .preview-footer .icon {
+        width: 13px;
+        height: 13px;
+      }
+      .preview-description {
+        min-height: 44px;
+        padding: 21px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .features {
+        border-top: 1px solid var(--line);
+        padding: 86px 0;
+      }
+      .features-intro {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 60px;
+        align-items: end;
+        margin-bottom: 50px;
+      }
+      .features-intro .eyebrow {
+        margin-bottom: 17px;
+      }
+      .features-intro p {
+        max-width: 375px;
+        color: var(--muted);
+        font-size: 14px;
+        justify-self: end;
+      }
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 30px;
+      }
+      .feature {
+        border-top: 1px solid #b9c7b4;
+        padding-top: 22px;
+      }
+      .feature-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+      }
+      .feature-index {
+        font-family: var(--display);
+        font-size: 12px;
+        color: #71866b;
+      }
+      .feature-top .icon {
+        width: 23px;
+        height: 23px;
+        color: var(--green);
+      }
+      .feature h3 {
+        font-size: 24px;
+        letter-spacing: -0.8px;
+        line-height: 1.25;
+        margin-bottom: 13px;
+      }
+      .feature p {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.8;
+      }
+      .feature-detail {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 23px;
+      }
+      .feature-detail span {
+        font-size: 10px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 4px 8px;
+        color: #4e6253;
+      }
+      .measurement {
+        background: #e9eee2;
+        border-block: 1px solid #dbe3d3;
+        padding: 62px 0;
+      }
+      .measurement-grid {
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        gap: 75px;
+        align-items: center;
+      }
+      .measurement .eyebrow {
+        margin-bottom: 18px;
+      }
+      .measured-number {
+        font-family: var(--display);
+        font-size: 100px;
+        letter-spacing: -7px;
+        line-height: 1;
+        color: var(--green);
+      }
+      .measured-number span {
+        font-size: 50px;
+        letter-spacing: -3px;
+      }
+      .measured-label {
+        font-size: 12px;
+        color: #56674f;
+        margin-top: 15px;
+      }
+      .measurement h2 {
+        font-size: 29px;
+        letter-spacing: -1px;
+        margin-bottom: 16px;
+      }
+      .measurement p {
+        font-size: 12px;
+        color: #54644f;
+        margin-top: 12px;
+        line-height: 1.85;
+      }
+      .text-link {
+        display: inline-flex;
+        gap: 7px;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 600;
+        padding-bottom: 3px;
+        border-bottom: 1px solid #95aa88;
+        margin-top: 19px;
+      }
+      .text-link .icon {
+        width: 15px;
+        height: 15px;
+      }
+      .how-section {
+        padding: 85px 0;
+      }
+      .how-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.1fr;
+        gap: 90px;
+      }
+      .how-section .eyebrow {
+        margin-bottom: 20px;
+      }
+      .how-intro > p {
+        margin-top: 20px;
+        max-width: 330px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .steps {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .step {
+        display: flex;
+        gap: 21px;
+        padding: 24px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .step:first-child {
+        padding-top: 0;
+      }
+      .step-number {
+        background: #e8eddf;
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        font-family: var(--display);
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .step h3 {
+        font-size: 21px;
+        letter-spacing: -0.6px;
+        margin-bottom: 6px;
+      }
+      .step p {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .faq-section {
+        padding: 0 0 88px;
+      }
+      .faq-grid {
+        border-top: 1px solid var(--line);
+        padding-top: 60px;
+        display: grid;
+        grid-template-columns: 1fr 1.1fr;
+        gap: 90px;
+      }
+      .faq-title .eyebrow {
+        margin-bottom: 16px;
+      }
+      .faq-title h2 {
+        font-size: 37px;
+      }
+      details {
+        border-bottom: 1px solid var(--line);
+      }
+      summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        padding: 19px 0;
+        cursor: pointer;
+        list-style: none;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      summary::after {
+        content: "+";
+        font-size: 23px;
+        line-height: 1;
+        color: var(--green);
+        font-weight: 400;
+      }
+      details[open] summary::after {
+        content: "−";
+      }
+      details p {
+        padding: 0 25px 22px 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.85;
+      }
+      details a {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .closing {
+        padding: 0 0 65px;
+      }
+      .closing-box {
+        padding: 55px 58px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 40px;
+        border-radius: 20px;
+        background: var(--deep);
+        color: #f3f5eb;
+        position: relative;
+        overflow: hidden;
+      }
+      .closing-box h2 {
+        font-size: 43px;
+        letter-spacing: -1.8px;
+      }
+      .closing-box p {
+        color: #b8cabb;
+        font-size: 13px;
+        margin-top: 13px;
+      }
+      .closing-action {
+        flex-shrink: 0;
+        text-align: center;
+      }
+      .button-lime {
+        background: var(--lime);
+        color: var(--deep);
+      }
+      .button-lime:hover {
+        background: #e3f4b4;
+      }
+      .closing-action small {
+        color: #b8cabb;
+        font-size: 10px;
+        display: block;
+        margin-top: 12px;
+      }
+      .footer {
+        padding: 0 0 30px;
+      }
+      .footer-main {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        padding-bottom: 27px;
+        border-bottom: 1px solid var(--line);
+      }
+      .footer .brand {
+        font-size: 20px;
+      }
+      .footer .brand-mark {
+        width: 30px;
+        height: 30px;
+        padding: 6px;
+      }
+      .footer-caption {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .footer-links {
+        margin-left: auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        font-size: 12px;
+      }
+      .footer-links a:hover {
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      .footer-bottom {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        margin-top: 21px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .hero-copy {
+        animation: arrive 0.65s both;
+      }
+      .disk-art {
+        animation: art-arrive 0.9s both;
+      }
+      @keyframes arrive {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
         }
-        angle += (seg.pct / total) * totalDeg;
-      });
-      return paths;
-    }
-
-    const innerSegs = [
-      { label: 'Windows',  pct: 0.28, color: '#2D3568' },
-      { label: 'Users',    pct: 0.38, color: '#3A4280' },
-      { label: 'Prog Files', pct: 0.20, color: '#25305A' },
-      { label: 'Other',    pct: 0.14, color: '#1E2848' },
-    ];
-    const midSegs = [
-      { label: 'C:\\ OS',   pct: 0.35, color: '#5B21B6' },
-      { label: 'D:\\ Data', pct: 0.45, color: '#6D28D9' },
-      { label: 'E:\\ Media', pct: 0.20, color: '#4C1D95' },
-    ];
-    const outerSegs = [
-      { label: 'Videos',    pct: 0.22, color: '#8B5CF6' },
-      { label: 'Images',    pct: 0.19, color: '#3B82F6' },
-      { label: 'Docs',      pct: 0.13, color: '#10B981' },
-      { label: 'Code',      pct: 0.12, color: '#F59E0B' },
-      { label: 'Archives',  pct: 0.09, color: '#F97316' },
-      { label: 'System',    pct: 0.25, color: '#475569' },
-    ];
-
-    const ring1 = buildRing(innerSegs, 58, 112, 360, 0);
-    const ring2 = buildRing(midSegs,   116, 172, 360, 15);
-    const ring3 = buildRing(outerSegs, 176, 234, 360, 0);
-
-    const svg = document.getElementById('sb-rings');
-
-    // Ring 1 (inner)
-    const g1 = document.createElementNS('http://www.w3.org/2000/svg','g');
-    g1.setAttribute('class','sb-group sb-group-1');
-    ring1.forEach(p => {
-      const el = document.createElementNS('http://www.w3.org/2000/svg','path');
-      el.setAttribute('d', p.d);
-      el.setAttribute('fill', p.color);
-      el.setAttribute('class', 'sb-segment');
-      el.setAttribute('opacity','0.7');
-      g1.appendChild(el);
-    });
-    svg.appendChild(g1);
-
-    // Ring 2 (middle)
-    const g2 = document.createElementNS('http://www.w3.org/2000/svg','g');
-    g2.setAttribute('class','sb-group sb-group-2');
-    ring2.forEach(p => {
-      const el = document.createElementNS('http://www.w3.org/2000/svg','path');
-      el.setAttribute('d', p.d);
-      el.setAttribute('fill', p.color);
-      el.setAttribute('class', 'sb-segment');
-      g2.appendChild(el);
-    });
-    svg.appendChild(g2);
-
-    // Ring 3 (outer) — slow rotation
-    const g3wrap = document.createElementNS('http://www.w3.org/2000/svg','g');
-    g3wrap.setAttribute('class','sb-rotate');
-    const g3 = document.createElementNS('http://www.w3.org/2000/svg','g');
-    g3.setAttribute('class','sb-group sb-group-3');
-    ring3.forEach(p => {
-      const el = document.createElementNS('http://www.w3.org/2000/svg','path');
-      el.setAttribute('d', p.d);
-      el.setAttribute('fill', p.color);
-      el.setAttribute('class', 'sb-segment');
-      g3.appendChild(el);
-    });
-    g3wrap.appendChild(g3);
-    svg.appendChild(g3wrap);
-
-    // Legend (top 4 outer segments)
-    const legend = document.getElementById('sb-legend');
-    outerSegs.slice(0,4).forEach(seg => {
-      const item = document.createElement('div');
-      item.className = 'sb-legend-item';
-      item.innerHTML = `<span class="sb-legend-dot" style="background:${seg.color}"></span>${seg.label}`;
-      legend.appendChild(item);
-    });
-  })();
-
-  // ── Treemap demo ─────────────────────────────────────────────────────────
-  (function() {
-    const cells = [
-      { name: 'Videos',    size: '124 GB', color: '#8B5CF6', span: true  },
-      { name: 'Images',    size:  '89 GB', color: '#3B82F6', span: false },
-      { name: 'System',    size:  '68 GB', color: '#475569', span: false },
-      { name: 'Documents', size:  '42 GB', color: '#10B981', span: false },
-      { name: 'Code',      size:  '31 GB', color: '#F59E0B', span: false },
-    ];
-    const grid = document.getElementById('treemap-grid');
-    cells.forEach(c => {
-      const cell = document.createElement('div');
-      cell.className = 'tm-cell' + (c.span ? ' tm-span-2' : '');
-      cell.style.background = c.color + '22';
-      cell.style.border = `1px solid ${c.color}44`;
-      cell.innerHTML = `<span class="tm-name">${c.name}</span><span class="tm-size">${c.size}</span>`;
-      grid.appendChild(cell);
-    });
-  })();
-  </script>
-</body>
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes art-arrive {
+        from {
+          opacity: 0;
+          transform: translateY(14px) rotate(2deg);
+        }
+        to {
+          opacity: 1;
+          transform: rotate(2deg);
+        }
+      }
+      @media (min-width: 1500px) {
+        .hero {
+          padding-top: 94px;
+        }
+      }
+      @media (max-width: 1050px) {
+        .container {
+          width: calc(100% - 56px);
+        }
+        .hero-layout {
+          gap: 38px;
+        }
+        h1 {
+          font-size: 65px;
+          letter-spacing: -4px;
+        }
+        .disk-art {
+          padding: 18px;
+        }
+        .art-map {
+          height: 265px;
+        }
+        .art-block {
+          padding: 11px;
+        }
+        .hero-actions .button {
+          padding: 14px 16px;
+          font-size: 12px;
+        }
+        .nav {
+          gap: 22px;
+        }
+        .nav-links {
+          gap: 19px;
+        }
+        .how-grid,
+        .faq-grid {
+          gap: 55px;
+        }
+      }
+      @media (max-width: 800px) {
+        .nav {
+          height: 70px;
+          gap: 14px;
+        }
+        .nav-download {
+          margin-left: auto;
+        }
+        .menu-toggle {
+          display: block;
+        }
+        .nav-links {
+          display: none;
+          position: absolute;
+          top: 70px;
+          left: 0;
+          right: 0;
+          background: var(--paper);
+          padding: 24px 28px;
+          border-bottom: 1px solid var(--line);
+          box-shadow: 0 10px 15px #142a2210;
+        }
+        .nav-links[data-open="true"] {
+          display: flex;
+          flex-direction: column;
+          align-items: start;
+          gap: 24px;
+        }
+        .hero {
+          padding: 48px 0 38px;
+        }
+        .hero-layout {
+          grid-template-columns: 1fr 1fr;
+          gap: 25px;
+        }
+        h1 {
+          font-size: 54px;
+          letter-spacing: -3.4px;
+        }
+        .hero-description {
+          font-size: 14px;
+        }
+        .art-map {
+          height: 245px;
+          grid-template-columns: 1fr 0.7fr 0.9fr;
+        }
+        .art-block span {
+          font-size: 9px;
+        }
+        .art-heading {
+          font-size: 8px;
+        }
+        .art-block .icon {
+          width: 16px;
+          height: 16px;
+        }
+        .art-tag {
+          left: -12px;
+          font-size: 9px;
+          padding: 9px 12px;
+        }
+        .art-caption {
+          font-size: 8px;
+        }
+        .promise-row {
+          margin-top: 40px;
+          flex-wrap: wrap;
+          gap: 14px 25px;
+        }
+        .promise {
+          font-size: 11px;
+        }
+        .product-section {
+          padding-top: 30px;
+        }
+        .showcase {
+          padding: 17px 17px 13px;
+        }
+        .preview-tab {
+          padding: 9px 11px;
+          font-size: 11px;
+        }
+        .showcase-version {
+          display: none;
+        }
+        .feature-grid {
+          gap: 24px;
+        }
+        .feature h3 {
+          font-size: 21px;
+        }
+        .measurement-grid {
+          gap: 40px;
+        }
+        .measured-number {
+          font-size: 83px;
+        }
+        .closing-box {
+          padding: 40px 32px;
+        }
+        .closing-box h2 {
+          font-size: 34px;
+        }
+        .footer-caption {
+          display: none;
+        }
+      }
+      @media (max-width: 620px) {
+        .container {
+          width: calc(100% - 40px);
+        }
+        .brand {
+          font-size: 21px;
+        }
+        .brand-mark {
+          width: 31px;
+          height: 31px;
+        }
+        .nav-download {
+          padding: 9px 12px;
+          font-size: 11px;
+        }
+        .nav-download .icon {
+          width: 15px;
+          height: 15px;
+        }
+        .hero-layout {
+          grid-template-columns: 1fr;
+          gap: 42px;
+        }
+        h1 {
+          font-size: clamp(54px, 12vw, 72px);
+          letter-spacing: -3.5px;
+        }
+        .hero-description {
+          font-size: 15px;
+          max-width: 400px;
+        }
+        .release-pill {
+          margin-bottom: 23px;
+        }
+        .hero-actions .button {
+          font-size: 12px;
+          padding: 14px 16px;
+        }
+        .disk-art {
+          max-width: 430px;
+          width: calc(100% - 14px);
+          margin-inline: auto;
+          padding: 21px;
+        }
+        .art-map {
+          height: 250px;
+        }
+        .art-block span {
+          font-size: 11px;
+        }
+        .art-block .icon {
+          width: 20px;
+          height: 20px;
+        }
+        .art-heading {
+          font-size: 10px;
+        }
+        .art-caption {
+          font-size: 9px;
+        }
+        .art-tag {
+          font-size: 10px;
+          bottom: 31px;
+        }
+        .promise-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 17px 14px;
+          margin-top: 39px;
+        }
+        .promise {
+          align-items: start;
+          font-size: 10px;
+          gap: 7px;
+        }
+        .promise .icon {
+          width: 14px;
+          height: 14px;
+        }
+        .section-heading {
+          display: block;
+        }
+        .section-heading h2 {
+          font-size: 30px;
+          letter-spacing: -1px;
+        }
+        .section-heading p {
+          margin-top: 15px;
+          max-width: 340px;
+          font-size: 12px;
+        }
+        .showcase {
+          padding: 11px 9px 12px;
+          border-radius: 13px;
+        }
+        .preview-tabs {
+          gap: 3px;
+          justify-content: space-between;
+          margin-bottom: 11px;
+        }
+        .preview-tab {
+          font-size: 10px;
+          padding: 8px 7px;
+          gap: 5px;
+        }
+        .preview-tab .icon {
+          width: 13px;
+          height: 13px;
+        }
+        .screen {
+          border-radius: 5px;
+        }
+        .preview-footer {
+          font-size: 8px;
+          padding-top: 11px;
+          gap: 10px;
+        }
+        .preview-footer span {
+          max-width: 220px;
+        }
+        .preview-description {
+          font-size: 11px;
+          text-align: left;
+          line-height: 1.8;
+        }
+        .product-section {
+          padding-bottom: 50px;
+        }
+        .features {
+          padding: 52px 0;
+        }
+        .features-intro {
+          grid-template-columns: 1fr;
+          gap: 19px;
+          margin-bottom: 32px;
+        }
+        h2 {
+          font-size: 35px;
+          letter-spacing: -1.5px;
+        }
+        .features-intro p {
+          justify-self: start;
+          font-size: 13px;
+        }
+        .feature-grid {
+          grid-template-columns: 1fr;
+          gap: 30px;
+        }
+        .feature-top {
+          margin-bottom: 13px;
+        }
+        .feature h3 {
+          font-size: 24px;
+        }
+        .feature p {
+          max-width: 440px;
+        }
+        .feature-detail {
+          margin-top: 17px;
+        }
+        .measurement {
+          padding: 44px 0;
+        }
+        .measurement-grid {
+          grid-template-columns: 1fr;
+          gap: 30px;
+        }
+        .measurement h2 {
+          font-size: 27px;
+        }
+        .measured-number {
+          font-size: 89px;
+        }
+        .how-section {
+          padding: 52px 0;
+        }
+        .how-grid,
+        .faq-grid {
+          grid-template-columns: 1fr;
+          gap: 32px;
+        }
+        .how-intro > p {
+          max-width: 400px;
+          font-size: 13px;
+        }
+        .step {
+          padding: 20px 0;
+          gap: 16px;
+        }
+        .faq-grid {
+          padding-top: 40px;
+        }
+        .faq-section {
+          padding-bottom: 50px;
+        }
+        .faq-title h2 {
+          font-size: 33px;
+        }
+        summary {
+          font-size: 13px;
+          padding: 18px 0;
+        }
+        .closing {
+          padding-bottom: 40px;
+        }
+        .closing-box {
+          display: block;
+          padding: 33px 25px;
+        }
+        .closing-box h2 {
+          font-size: 35px;
+        }
+        .closing-box p {
+          font-size: 12px;
+        }
+        .closing-action {
+          text-align: left;
+          margin-top: 26px;
+        }
+        .footer-main {
+          flex-wrap: wrap;
+          gap: 20px;
+          padding-bottom: 22px;
+        }
+        .footer-links {
+          width: 100%;
+          margin-left: 0;
+          gap: 22px;
+          font-size: 11px;
+        }
+        .footer-bottom {
+          align-items: end;
+          font-size: 9px;
+        }
+      }
+      @media (max-width: 360px) {
+      h1 {
+        font-size: 42px;
+        letter-spacing: -2.5px;
+      }
+      .release-pill {
+        font-size: 10px;
+        gap: 6px;
+      }
+      .release-pill span:first-child {
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+        .nav {
+          gap: 7px;
+        }
+        .brand {
+          font-size: 18px;
+          gap: 7px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .brand-mark {
+          width: 28px;
+          height: 28px;
+          padding: 6px;
+        }
+        .nav-download {
+          padding: 9px;
+          font-size: 10px;
+          gap: 6px;
+        }
+        .menu-toggle {
+          padding: 4px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body id="top">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      style="display: none"
+      aria-hidden="true"
+    >
+      <defs>
+        <symbol id="i-mark" viewBox="0 0 24 24">
+          <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+          <path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
+        </symbol>
+        <symbol id="i-down" viewBox="0 0 24 24">
+          <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
+        </symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24">
+          <path d="M4 12h16m-6-6 6 6-6 6" />
+        </symbol>
+        <symbol id="i-out" viewBox="0 0 24 24">
+          <path d="M6 18 18 6M6 6h12v12" />
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </symbol>
+        <symbol id="i-folder" viewBox="0 0 24 24">
+          <path d="M3 6h7l2 3h9v11H3V6Z" />
+        </symbol>
+        <symbol id="i-file" viewBox="0 0 24 24">
+          <path d="M5 3h9l5 5v13H5V3Zm9 0v6h5" />
+        </symbol>
+        <symbol id="i-video" viewBox="0 0 24 24">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="m10 9 5 3-5 3V9Z" />
+        </symbol>
+        <symbol id="i-image" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8" cy="8" r="1.5" />
+          <path d="m3 17 6-6 4 4 3-3 5 5" />
+        </symbol>
+        <symbol id="i-audio" viewBox="0 0 24 24">
+          <path d="M9 18V6l11-3v12M9 9l11-3" />
+          <ellipse cx="6" cy="18" rx="3" ry="2.5" />
+          <ellipse cx="17" cy="15" rx="3" ry="2.5" />
+        </symbol>
+        <symbol id="i-map" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M13 3v18m0-10h8" />
+        </symbol>
+        <symbol id="i-eye" viewBox="0 0 24 24">
+          <path d="M2 12Q12-2 22 12Q12 26 2 12Z" />
+          <circle cx="12" cy="12" r="3" />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+          <path d="m5 12 4 4L19 6" />
+        </symbol>
+        <symbol id="i-window" viewBox="0 0 24 24">
+          <path d="M3 5 21 2v20L3 19V5Zm8-1v17M3 12h18" />
+        </symbol>
+        <symbol id="i-disk" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="16" rx="3" />
+          <path d="M3 14h18m-5 3h2" />
+          <circle cx="12" cy="9" r="2" />
+        </symbol>
+        <symbol id="i-save" viewBox="0 0 24 24">
+          <path d="M4 3h13l4 4v14H3V3h1Zm3 0v7h10V3M7 21v-7h10v7" />
+        </symbol>
+        <symbol id="i-menu" viewBox="0 0 24 24">
+          <path d="M4 7h16M4 12h16M4 17h16" />
+        </symbol>
+        <symbol id="i-github" viewBox="0 0 24 24">
+          <path
+            d="M9 19c-4 1-4-2-6-2m12 5v-3.9c0-1.1-.4-1.7-1-2.1 3.4-.4 7-1.7 7-7.5 0-1.6-.6-2.9-1.6-4 .2-.5.7-2-.1-4 0 0-1.3-.4-4.2 1.5a14.8 14.8 0 0 0-7.6 0C4.6-.4 3.3 0 3.3 0c-.8 2-.3 3.5-.1 4C2.2 5.1 1.6 6.4 1.6 8c0 5.8 3.6 7.1 7 7.5-.5.4-1 1.2-1 2.4V22"
+            transform="translate(1 1) scale(.9)"
+          />
+        </symbol>
+      </defs>
+    </svg>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="container nav">
+        <a class="brand" href="#top" aria-label="DiskSizer home"
+          ><svg class="brand-mark icon" aria-hidden="true">
+            <use href="#i-mark" /></svg
+          >DiskSizer</a
+        >
+        <nav
+          class="nav-links"
+          id="site-navigation"
+          aria-label="Main navigation"
+        >
+          <a href="#explore">Explore the app</a
+          ><a href="#how-it-works">How it works</a><a href="#faq">FAQ</a
+          ><a
+            class="nav-source"
+            href="https://github.com/ibrahimokdadov/DiskSizer"
+            target="_blank"
+            rel="noopener"
+            ><svg class="icon" aria-hidden="true"><use href="#i-github" /></svg
+            >GitHub</a
+          >
+        </nav>
+        <a
+          class="button button-primary nav-download"
+          href="https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip"
+          ><svg class="icon" aria-hidden="true"><use href="#i-down" /></svg
+          >Download</a
+        >
+        <button
+          class="menu-toggle"
+          type="button"
+          aria-label="Open navigation"
+          aria-controls="site-navigation"
+          aria-expanded="false"
+        >
+          <svg class="icon" aria-hidden="true"><use href="#i-menu" /></svg>
+        </button>
+      </div>
+    </header>
+    <main id="main">
+      <section class="hero">
+        <div class="container">
+          <div class="hero-layout">
+            <div class="hero-copy">
+              <a
+                class="release-pill"
+                href="https://github.com/ibrahimokdadov/DiskSizer/releases/tag/v1.1.0"
+                ><span>NEW · V1.1.0</span> A clearer view of your storage
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-arrow" /></svg
+              ></a>
+              <h1>
+                Make room for<br /><span class="soft">what matters.</span>
+              </h1>
+              <p class="hero-description">
+                Find what’s taking up space. See what’s inside. Choose what
+                stays. Your Windows storage, finally making sense.
+              </p>
+              <div class="hero-actions">
+                <a
+                  class="button button-primary"
+                  href="https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip"
+                  ><svg class="icon" aria-hidden="true">
+                    <use href="#i-down" /></svg
+                  >Download for Windows</a
+                ><a class="button button-quiet" href="#explore"
+                  >Take a closer look<svg class="icon" aria-hidden="true">
+                    <use href="#i-arrow" /></svg
+                ></a>
+              </div>
+              <p class="download-note">
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-window" /></svg
+                >Windows 10 &amp; 11 · x64 · Free download
+              </p>
+            </div>
+            <div
+              class="disk-art"
+              role="img"
+              aria-label="Illustrative disk map showing videos, projects, archives, photos, audio and documents"
+            >
+              <div class="art-heading">
+                <span>YOUR DISK, UNPACKED</span
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#i-map" />
+                </svg>
+              </div>
+              <div class="art-map" aria-hidden="true">
+                <div class="art-block art-videos">
+                  <svg class="icon"><use href="#i-video" /></svg
+                  ><span>Videos</span>
+                </div>
+                <div class="art-block art-projects">
+                  <svg class="icon"><use href="#i-folder" /></svg
+                  ><span>Projects</span>
+                </div>
+                <div class="art-block art-archives">
+                  <svg class="icon"><use href="#i-save" /></svg
+                  ><span>Archives</span>
+                </div>
+                <div class="art-block art-photos">
+                  <svg class="icon"><use href="#i-image" /></svg
+                  ><span>Photos</span>
+                </div>
+                <div class="art-block art-audio">
+                  <svg class="icon"><use href="#i-audio" /></svg
+                  ><span>Audio</span>
+                </div>
+                <div class="art-block art-docs">
+                  <svg class="icon"><use href="#i-file" /></svg
+                  ><span>Docs</span>
+                </div>
+              </div>
+              <div class="art-caption">
+                <span>A place for everything.</span><span>Illustration</span>
+              </div>
+              <div class="art-tag">
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-check" /></svg
+                >The big picture. All the little details.
+              </div>
+            </div>
+          </div>
+          <div class="promise-row">
+            <span class="promise"
+              ><svg class="icon" aria-hidden="true">
+                <use href="#i-search" /></svg
+              >Search every scanned file</span
+            ><span class="promise"
+              ><svg class="icon" aria-hidden="true"><use href="#i-eye" /></svg
+              >Preview before cleanup</span
+            ><span class="promise"
+              ><svg class="icon" aria-hidden="true"><use href="#i-disk" /></svg
+              >Understand on-disk sizes</span
+            ><span class="promise"
+              ><svg class="icon" aria-hidden="true"><use href="#i-save" /></svg
+              >Pick up from a saved scan</span
+            >
+          </div>
+        </div>
+      </section>
+      <section
+        class="product-section"
+        id="explore"
+        aria-labelledby="explore-title"
+      >
+        <div class="container">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow"
+                ><span class="dot"></span>A LOOK INSIDE</span
+              >
+              <h2 id="explore-title">Less digging. More discovering.</h2>
+            </div>
+            <p>
+              Start with the largest files. Zoom out to the whole picture. Look
+              a little closer before you let something go.
+            </p>
+          </div>
+          <figure class="showcase">
+            <div class="preview-tabs" role="tablist" aria-label="App preview">
+              <button
+                class="preview-tab"
+                type="button"
+                id="tab-files"
+                role="tab"
+                aria-selected="true"
+                aria-controls="preview-panel"
+                data-view="files"
+              >
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-search" /></svg
+                >Find large files</button
+              ><button
+                class="preview-tab"
+                type="button"
+                id="tab-map"
+                role="tab"
+                aria-selected="false"
+                aria-controls="preview-panel"
+                tabindex="-1"
+                data-view="map"
+              >
+                <svg class="icon" aria-hidden="true"><use href="#i-map" /></svg
+                >See the map</button
+              ><button
+                class="preview-tab"
+                type="button"
+                id="tab-preview"
+                role="tab"
+                aria-selected="false"
+                aria-controls="preview-panel"
+                tabindex="-1"
+                data-view="preview"
+              >
+                <svg class="icon" aria-hidden="true"><use href="#i-eye" /></svg
+                >Look inside</button
+              ><span class="showcase-version">DISKSIZER / 1.1.0</span>
+            </div>
+            <div
+              class="screen"
+              id="preview-panel"
+              role="tabpanel"
+              aria-labelledby="tab-files"
+              tabindex="0"
+            >
+              <img
+                id="screen-files"
+                src="/assets/app-files-20261103.png"
+                width="1400"
+                height="900"
+                alt="DiskSizer listing sample studio files, with global search, type and age filters, and size sorting."
+                decoding="async"
+              /><img
+                id="screen-map"
+                src="/assets/app-map-20261103.png"
+                width="1400"
+                height="900"
+                alt="DiskSizer treemap showing sample video edits, archives, design files and projects sized by their storage use."
+                decoding="async"
+                loading="lazy"
+                hidden
+              /><img
+                id="screen-preview"
+                src="/assets/app-preview-20261103.png"
+                width="1400"
+                height="900"
+                alt="DiskSizer inspecting a sample Field notes illustration in the file preview panel."
+                decoding="async"
+                loading="lazy"
+                hidden
+              />
+            </div>
+            <figcaption class="preview-footer">
+              <span>Actual app interface. Sample files and drive values.</span
+              ><a
+                id="full-preview"
+                href="/assets/app-files-20261103.png"
+                target="_blank"
+                rel="noopener"
+                >View full size<svg class="icon" aria-hidden="true">
+                  <use href="#i-out" /></svg
+              ></a>
+            </figcaption>
+          </figure>
+          <p
+            class="preview-description"
+            id="preview-description"
+            aria-live="polite"
+          >
+            One list for the entire scan. Filter by name, file type, or age,
+            then sort by what takes up the most space.
+          </p>
+          <noscript
+            ><p class="preview-description">
+              Also view the
+              <a href="/assets/app-map-20261103.png">storage map</a> and
+              <a href="/assets/app-preview-20261103.png">file preview</a>
+              screenshots.
+            </p></noscript
+          >
+        </div>
+      </section>
+      <section class="features" aria-labelledby="features-title">
+        <div class="container">
+          <div class="features-intro">
+            <div>
+              <span class="eyebrow"
+                ><span class="dot"></span>SMALL DETAILS. BETTER DECISIONS.</span
+              >
+              <h2 id="features-title">
+                Know a little more.<br />Guess a little less.
+              </h2>
+            </div>
+            <p>
+              A big number is only the beginning. DiskSizer gives you the
+              context to understand your storage and make your own cleanup
+              choices.
+            </p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature">
+              <div class="feature-top">
+                <span class="feature-index">01 / UNDERSTAND</span
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#i-disk" />
+                </svg>
+              </div>
+              <h3>Every size has a story.</h3>
+              <p>
+                See file size and measured on-disk allocation separately. Shared
+                hardlinks count once in folder totals, and unknown values are
+                clearly identified.
+              </p>
+              <div class="feature-detail">
+                <span>Logical size</span><span>On-disk allocation</span
+                ><span>Hardlinks</span>
+              </div>
+            </article>
+            <article class="feature">
+              <div class="feature-top">
+                <span class="feature-index">02 / INSPECT</span
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#i-eye" />
+                </svg>
+              </div>
+              <h3>Have a look first.</h3>
+              <p>
+                Preview supported images, text, audio, and video. Check a file’s
+                details or open its location in Explorer before choosing to
+                recycle it.
+              </p>
+              <div class="feature-detail">
+                <span>File previews</span><span>Full paths</span
+                ><span>Explorer access</span>
+              </div>
+            </article>
+            <article class="feature">
+              <div class="feature-top">
+                <span class="feature-index">03 / RETURN</span
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#i-save" />
+                </svg>
+              </div>
+              <h3>Keep the picture.</h3>
+              <p>
+                Scans save automatically. Export a copy or reopen a dated,
+                read-only scan when you need another look. Rescan when you need
+                the latest information.
+              </p>
+              <div class="feature-detail">
+                <span>Automatic saves</span><span>Read-only reopening</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section class="measurement" aria-labelledby="measurement-title">
+        <div class="container measurement-grid">
+          <div>
+            <span class="eyebrow"
+              ><span class="dot"></span>MEASURED, NOT ASSUMED</span
+            >
+            <div class="measured-number">~2.2<span> sec</span></div>
+            <div class="measured-label">
+              14,950 files · 1,895 folders · One test workload
+            </div>
+          </div>
+          <div>
+            <h2 id="measurement-title">A measurement. With context.</h2>
+            <p>
+              Version 1.1.0 scanned our Windows development dependency folder in
+              2.197, 2.188, and 2.100 seconds in repeated runs. Timings include
+              allocation metadata and saved indexing, and exclude drive
+              discovery and final UI rendering.
+            </p>
+            <p>
+              Cold-cache conditions were not controlled. This is not a
+              whole-drive estimate or a comparison with other tools. Persistent
+              indexing adds disk usage and write time; your results will depend
+              on your files and hardware.
+            </p>
+            <a
+              class="text-link"
+              href="https://github.com/ibrahimokdadov/DiskSizer/blob/master/docs/plans/2026-11-03-adopted-priorities.md"
+              >Read the measurements &amp; tradeoffs<svg
+                class="icon"
+                aria-hidden="true"
+              >
+                <use href="#i-arrow" /></svg
+            ></a>
+          </div>
+        </div>
+      </section>
+      <section
+        class="how-section"
+        id="how-it-works"
+        aria-labelledby="how-title"
+      >
+        <div class="container how-grid">
+          <div class="how-intro">
+            <span class="eyebrow"
+              ><span class="dot"></span>FROM DOWNLOAD TO DISCOVERY</span
+            >
+            <h2 id="how-title">A few clicks.<br />A clearer picture.</h2>
+            <p>
+              No complicated setup. Pick a location and start exploring your
+              storage.
+            </p>
+          </div>
+          <ol class="steps">
+            <li class="step">
+              <span class="step-number">1</span>
+              <div>
+                <h3>Download and open</h3>
+                <p>
+                  Get the Windows x64 ZIP, extract the entire archive, and run
+                  DiskSizer.exe. The current build is unsigned.
+                </p>
+              </div>
+            </li>
+            <li class="step">
+              <span class="step-number">2</span>
+              <div>
+                <h3>Choose your starting point</h3>
+                <p>
+                  Select a drive or a folder. Follow live progress as files are
+                  discovered. Stop whenever you need to; partial results stay
+                  clearly marked.
+                </p>
+              </div>
+            </li>
+            <li class="step">
+              <span class="step-number">3</span>
+              <div>
+                <h3>See what belongs</h3>
+                <p>
+                  Search, sort, and preview. Review files on your terms, or save
+                  a copy of your scan to revisit later.
+                </p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+      <section class="faq-section" id="faq" aria-labelledby="faq-title">
+        <div class="container faq-grid">
+          <div class="faq-title">
+            <span class="eyebrow"
+              ><span class="dot"></span>A FEW THINGS TO KNOW</span
+            >
+            <h2 id="faq-title">Before you dive in.</h2>
+          </div>
+          <div>
+            <details>
+              <summary>Will scanning change my files?</summary>
+              <p>
+                The scanner reads file metadata. It does not delete or
+                reorganize your files. Cleanup is a separate action you choose.
+                Scan results themselves are saved to the application’s data
+                folder.
+              </p>
+            </details>
+            <details>
+              <summary>Do I need administrator access?</summary>
+              <p>
+                Normal scans run without administrator access. Protected or
+                inaccessible locations are reported, so a partial scan is
+                distinguishable from a complete one.
+              </p>
+            </details>
+            <details>
+              <summary>Is “on disk” the space I can recover?</summary>
+              <p>
+                Not necessarily. Allocation, shared hardlinks, cloud files, and
+                filesystem metadata can affect the result. Moving something to
+                the Recycle Bin may not free its space immediately. DiskSizer
+                explains unknown allocation instead of treating it as certain.
+              </p>
+            </details>
+            <details>
+              <summary>How do saved scans work?</summary>
+              <p>
+                Results save automatically and are retained until you remove
+                them. You can export a copy or reopen a dated, read-only scan.
+                Rescan for current metadata or before deleting files. Previews
+                show the file currently at the saved path.
+              </p>
+            </details>
+            <details>
+              <summary>Which systems does DiskSizer support?</summary>
+              <p>
+                The current download is for Windows 10 and Windows 11 on x64. It
+                is a ZIP distribution: extract all its files together before
+                running DiskSizer.exe. Find build instructions and source in the
+                <a href="https://github.com/ibrahimokdadov/DiskSizer"
+                  >GitHub repository</a
+                >.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+      <section class="closing" aria-labelledby="download-title">
+        <div class="container">
+          <div class="closing-box">
+            <div>
+              <h2 id="download-title">A little more<br />breathing room.</h2>
+              <p>Get to know your disk. Make space for what’s next.</p>
+            </div>
+            <div class="closing-action">
+              <a
+                class="button button-lime"
+                href="https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip"
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#i-down" /></svg
+                >Download DiskSizer</a
+              ><small>v1.1.0 · Windows x64 · Unsigned ZIP</small>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-main">
+          <a class="brand" href="#top"
+            ><svg class="brand-mark icon" aria-hidden="true">
+              <use href="#i-mark" /></svg
+            >DiskSizer</a
+          ><span class="footer-caption">A clearer view of your storage.</span>
+          <div class="footer-links">
+            <a href="https://github.com/ibrahimokdadov/DiskSizer"
+              >Source on GitHub</a
+            ><a
+              href="https://github.com/ibrahimokdadov/DiskSizer/releases/tag/v1.1.0"
+              >Release notes</a
+            ><a href="https://github.com/ibrahimokdadov/DiskSizer/issues"
+              >Report an issue</a
+            >
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>Made for the things you want to keep.</span
+          ><a href="#top">Back to top ↑</a>
+        </div>
+      </div>
+    </footer>
+    <script>
+      (() => {
+        const toggle = document.querySelector(".menu-toggle"),
+          navigation = document.querySelector(".nav-links");
+        function closeMenu() {
+          toggle.setAttribute("aria-expanded", "false");
+          toggle.setAttribute("aria-label", "Open navigation");
+          navigation.dataset.open = "false";
+        }
+        toggle.addEventListener("click", () => {
+          const open = toggle.getAttribute("aria-expanded") !== "true";
+          toggle.setAttribute("aria-expanded", String(open));
+          toggle.setAttribute(
+            "aria-label",
+            open ? "Close navigation" : "Open navigation",
+          );
+          navigation.dataset.open = String(open);
+        });
+        navigation
+          .querySelectorAll("a")
+          .forEach((link) => link.addEventListener("click", closeMenu));
+        document.addEventListener("keydown", (event) => {
+          if (
+            event.key === "Escape" &&
+            toggle.getAttribute("aria-expanded") === "true"
+          ) {
+            closeMenu();
+            toggle.focus();
+          }
+        });
+        document.addEventListener("click", (event) => {
+          if (!event.target.closest(".site-header")) closeMenu();
+        });
+        const tabs = Array.from(document.querySelectorAll(".preview-tab"));
+        const descriptions = {
+          files:
+            "One list for the entire scan. Filter by name, file type, or age, then sort by what takes up the most space.",
+          map: "See which folders take up the most space. Drill into a folder, or return to the list for every individual file.",
+          preview:
+            "A closer look before a cleanup decision. Inspect supported files without leaving the app.",
+        };
+        function selectTab(tab) {
+          tabs.forEach((item) => {
+            const selected = item === tab;
+            item.setAttribute("aria-selected", String(selected));
+            item.tabIndex = selected ? 0 : -1;
+            document.getElementById("screen-" + item.dataset.view).hidden =
+              !selected;
+          });
+          document
+            .getElementById("preview-panel")
+            .setAttribute("aria-labelledby", tab.id);
+          document.getElementById("preview-description").textContent =
+            descriptions[tab.dataset.view];
+          document.getElementById("full-preview").href =
+            document.getElementById("screen-" + tab.dataset.view).src;
+        }
+        tabs.forEach((tab, index) => {
+          tab.addEventListener("click", () => selectTab(tab));
+          tab.addEventListener("keydown", (event) => {
+            let next;
+            if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+            if (event.key === "ArrowLeft")
+              next = (index + tabs.length - 1) % tabs.length;
+            if (event.key === "Home") next = 0;
+            if (event.key === "End") next = tabs.length - 1;
+            if (next !== undefined) {
+              event.preventDefault();
+              tabs[next].focus();
+              selectTab(tabs[next]);
+            }
+          });
+        });
+      })();
+    </script>
+  </body>
 </html>
