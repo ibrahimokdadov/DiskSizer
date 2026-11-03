@@ -1,200 +1,59 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo } from 'react'
 import * as d3 from 'd3'
 import type { FileNode } from '../../types/scan'
-import { getFileColor, getDirectoryColor } from '../../lib/colors'
 import { formatBytes } from '../../lib/format'
 import { useScanStore } from '../../store/scan-store'
 import { useUIStore } from '../../store/ui-store'
 import { useContextMenu } from '../../hooks/useContextMenu'
+import { canNavigate } from '../../lib/scan-tree'
 
-interface Props {
-  node: FileNode
-  width: number
-  height: number
-}
-
-interface TreemapNode {
-  data: FileNode
-  x0: number; y0: number; x1: number; y1: number
-  depth: number
-  value: number
-  children?: TreemapNode[]
-}
+interface Props { node: FileNode; width: number; height: number }
+const MAX_TILES = 80
+const TILE_COLORS = ['#325f8a', '#356e87', '#4a608f', '#386f71', '#58658c', '#457b8c', '#4a6c9c', '#3f6079']
 
 export function TreemapChart({ node, width, height }: Props) {
   const navigateIn = useScanStore(s => s.navigateIn)
-  const setSelectedNode = useUIStore(s => s.setSelectedNode)
+  const select = useUIStore(s => s.setSelectedNode)
+  const setViewMode = useUIStore(s => s.setViewMode)
   const setTooltip = useUIStore(s => s.setTooltip)
   const { showContextMenu } = useContextMenu()
-
-  // Create a shallow copy of the node tree limited to 2 levels deep for D3
-  const shallowNode = useMemo(() => {
-    function shallow(n: FileNode, depth: number): FileNode {
-      if (depth >= 2 || n.type === 'file' || !n.children) return { ...n, children: undefined }
-      return {
-        ...n,
-        children: n.children.slice(0, 60).map(c => shallow(c, depth + 1))
-      }
-    }
-    return shallow(node, 0)
-  }, [node])
-
-  const layout = useMemo(() => {
-    if (width <= 0 || height <= 0) return []
-
-    const root = d3.hierarchy(shallowNode)
-      .sum(d => d.type === 'file' ? d.size : (d.children ? 0 : d.size))
-      .sort((a, b) => (b.value || 0) - (a.value || 0))
-
-    const treemap = d3.treemap<FileNode>()
-      .size([width, height])
-      .padding(2)
-      .paddingTop(22)
-      .round(true)
-      .tile(d3.treemapSquarify.ratio(1.618))
-
-    const tree = treemap(root)
-
-    // Collect visible nodes (depth 1-2 relative to root)
-    const nodes: TreemapNode[] = []
-
-    function collect(n: d3.HierarchyRectangularNode<FileNode>, maxDepth: number) {
-      if (n.depth > 0 && n.depth <= maxDepth) {
-        const w = n.x1 - n.x0
-        const h = n.y1 - n.y0
-        if (w >= 2 && h >= 2) {
-          nodes.push({
-            data: n.data,
-            x0: n.x0, y0: n.y0, x1: n.x1, y1: n.y1,
-            depth: n.depth,
-            value: n.value || 0
-          })
-        }
-      }
-      if (n.children && n.depth < maxDepth) {
-        n.children.forEach(c => collect(c, maxDepth))
-      }
-    }
-
-    collect(tree, 2)
-    return nodes
+  const selected = useUIStore(s => s.selectedNode)
+  const { tiles, originals } = useMemo(() => {
+    const summaries = (node.children || []).filter(child => child.kind === 'aggregate')
+    const children = (node.children || []).filter(child => child.kind !== 'aggregate').slice().sort((a, b) => b.size - a.size)
+    const originals = new Map(children.map(child => [child.path, child]))
+    const kept: FileNode[] = children.slice(0, MAX_TILES).map(child => ({ ...child, children: undefined }))
+    const rest = children.slice(MAX_TILES)
+    const omittedCount = rest.length + summaries.reduce((sum, child) => sum + (child.itemCount || 0), 0)
+    if (rest.length || summaries.length) kept.push({ name: `Other (${omittedCount} items)`, path: '', size: [...rest, ...summaries].reduce((sum, child) => sum + child.size, 0), type: 'directory', kind: 'aggregate', itemCount: omittedCount })
+    const root = d3.hierarchy<FileNode>({ ...node, children: kept }).sum(item => item.children?.length ? 0 : item.size)
+    const layout = d3.treemap<FileNode>().size([width, height]).padding(4).round(true)(root)
+    return { tiles: layout.children || [], originals }
   }, [node, width, height])
 
-  const rootSize = useMemo(() => {
-    return node.size || layout.reduce((sum, n) => n.depth === 1 ? sum + n.value : sum, 0)
-  }, [node, layout])
+  const activate = (item: FileNode, open: boolean) => {
+    if (item.kind === 'aggregate') { setTooltip(null); setViewMode('list'); return }
+    const original = originals.get(item.path) || item
+    if (open && canNavigate(original)) { navigateIn(original); select(null); setTooltip(null) }
+    else select(original)
+  }
 
-  // Find the real node (with full children) from the original tree by path
-  const findRealNode = useCallback((targetPath: string): FileNode | null => {
-    function find(n: FileNode): FileNode | null {
-      if (n.path === targetPath) return n
-      if (n.children) {
-        for (const c of n.children) {
-          const found = find(c)
-          if (found) return found
-        }
-      }
-      return null
-    }
-    return find(node)
-  }, [node])
-
-  const handleClick = useCallback((n: TreemapNode, e: React.MouseEvent) => {
-    e.stopPropagation()
-    const realNode = findRealNode(n.data.path) || n.data
-    if (realNode.type === 'directory') {
-      navigateIn(realNode)
-    }
-    setSelectedNode(realNode)
-  }, [navigateIn, setSelectedNode, findRealNode])
-
-  const handleMouseMove = useCallback((n: TreemapNode, e: React.MouseEvent) => {
-    setTooltip({
-      name: n.data.name,
-      path: n.data.path,
-      size: n.data.size,
-      percentage: rootSize > 0 ? (n.data.size / rootSize) * 100 : 0,
-      type: n.data.type,
-      extension: n.data.extension,
-      itemCount: n.data.itemCount,
-      x: e.clientX,
-      y: e.clientY
-    })
-  }, [setTooltip, rootSize])
-
-  const handleMouseLeave = useCallback(() => {
-    setTooltip(null)
-  }, [setTooltip])
-
+  if (!tiles.some(tile => (tile.value || 0) > 0)) return <div className="table-empty"><strong>No file size to map</strong><span>Use the list to inspect empty or unavailable items.</span><button className="text-button" onClick={() => setViewMode('list')}>Show list</button></div>
   return (
-    <svg width={width} height={height} className="select-none">
-      {/* Background */}
-      <rect width={width} height={height} fill="#0f1117" />
-
-      {layout.map((n) => {
-        const w = n.x1 - n.x0
-        const h = n.y1 - n.y0
-        const color = n.data.type === 'directory'
-          ? getDirectoryColor(n.depth)
-          : getFileColor(n.data.extension)
-        const showLabel = w > 60 && h > 20
-
-        return (
-          <g
-            key={n.data.path}
-            onClick={(e) => handleClick(n, e)}
-            onContextMenu={(e) => showContextMenu(e, findRealNode(n.data.path) || n.data)}
-            onMouseMove={(e) => handleMouseMove(n, e)}
-            onMouseLeave={handleMouseLeave}
-            className="cursor-pointer"
-          >
-            <rect
-              x={n.x0}
-              y={n.y0}
-              width={w}
-              height={h}
-              fill={color}
-              fillOpacity={n.depth === 1 ? 0.85 : 0.65}
-              stroke="#0f1117"
-              strokeWidth={1}
-              rx={2}
-              className="hover:brightness-125 transition-all duration-150"
-            />
-            {showLabel && (
-              <>
-                {/* Name label */}
-                <text
-                  x={n.x0 + 4}
-                  y={n.y0 + 14}
-                  fontSize={11}
-                  fontWeight={n.data.type === 'directory' ? 600 : 400}
-                  fill="white"
-                  fillOpacity={0.9}
-                  className="pointer-events-none"
-                >
-                  <tspan>
-                    {n.data.name.length > Math.floor(w / 7)
-                      ? n.data.name.slice(0, Math.floor(w / 7) - 2) + '...'
-                      : n.data.name}
-                  </tspan>
-                </text>
-                {/* Size label */}
-                {h > 36 && (
-                  <text
-                    x={n.x0 + 4}
-                    y={n.y0 + 28}
-                    fontSize={10}
-                    fill="white"
-                    fillOpacity={0.6}
-                    className="pointer-events-none"
-                  >
-                    {formatBytes(n.data.size)}
-                  </text>
-                )}
-              </>
-            )}
-          </g>
-        )
+    <svg width={width} height={height} role="group" aria-label="Map of this folder's file sizes">
+      {tiles.map((tile, index) => {
+        const w = tile.x1 - tile.x0
+        const h = tile.y1 - tile.y0
+        if (w < 3 || h < 3 || !tile.value) return null
+        const item = tile.data
+        const aggregate = item.kind === 'aggregate'
+        const chars = Math.max(1, Math.floor((w - 20) / 7))
+        return <g key={item.path || 'remaining'} role="button" tabIndex={0} aria-label={`${item.name}, ${formatBytes(item.size)}${aggregate ? ', show all items' : ''}`} onClick={() => activate(item, false)} onDoubleClick={() => activate(item, true)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); activate(item, event.key === 'Enter') } }} onContextMenu={event => { if (!aggregate) showContextMenu(event, originals.get(item.path) || item) }} onMouseMove={event => setTooltip({ name: item.name, path: aggregate ? 'Show all items in the list' : item.path, size: item.size, percentage: node.size ? item.size / node.size * 100 : 0, type: item.type, itemCount: item.itemCount, x: event.clientX, y: event.clientY })} onMouseLeave={() => setTooltip(null)} className="cursor-pointer">
+          <rect x={tile.x0} y={tile.y0} width={w} height={h} rx={5} fill={aggregate ? '#354457' : TILE_COLORS[index % TILE_COLORS.length]} stroke={selected?.path === item.path ? '#c2ddff' : '#18283a'} strokeWidth={selected?.path === item.path ? 2 : 1} className="hover:brightness-125 transition-[filter]" />
+          {w > 70 && h > 29 && <text x={tile.x0 + 10} y={tile.y0 + 20} fill="#e8f2ff" fontSize={11} fontWeight={500} className="map-label">{item.name.length > chars ? item.name.slice(0, Math.max(1, chars - 1)) + '…' : item.name}</text>}
+          {w > 70 && h > 52 && <text x={tile.x0 + 10} y={tile.y0 + 39} fill="#c0d6ed" fontSize={10} className="map-label">{formatBytes(item.size)}</text>}
+          {aggregate && w > 120 && h > 74 && <text x={tile.x0 + 10} y={tile.y0 + 60} fill="#9fb5cd" fontSize={10} className="map-label">Show all items →</text>}
+        </g>
       })}
     </svg>
   )

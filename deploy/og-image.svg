@@ -53,13 +53,13 @@
 
   <!-- Metrics pills -->
   <rect x="80" y="345" width="100" height="32" rx="16" fill="rgba(245,158,11,0.12)" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
-  <text x="130" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#F59E0B">1.18× faster</text>
+  <text x="130" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#F59E0B">File search</text>
 
   <rect x="194" y="345" width="110" height="32" rx="16" fill="rgba(124,58,237,0.12)" stroke="rgba(124,58,237,0.3)" stroke-width="1"/>
-  <text x="249" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#A78BFA">−73% heap</text>
+  <text x="249" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#A78BFA">On-disk size</text>
 
   <rect x="318" y="345" width="130" height="32" rx="16" fill="rgba(16,185,129,0.12)" stroke="rgba(16,185,129,0.3)" stroke-width="1"/>
-  <text x="383" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#10B981">Open Source</text>
+  <text x="383" y="366" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#10B981">Saved scans</text>
 
   <!-- Domain -->
   <rect x="80" y="560" width="250" height="36" rx="6" fill="rgba(124,58,237,0.08)" stroke="rgba(124,58,237,0.2)" stroke-width="1"/>

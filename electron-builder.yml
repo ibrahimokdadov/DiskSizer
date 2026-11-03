@@ -1,22 +1,23 @@
 appId: com.diskvision.app
-productName: DiskVision
+productName: DiskSizer
 directories:
   buildResources: resources
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-  - '!{tailwind.config.js,postcss.config.js}'
+  - out/**/*
+  - package.json
+  - build/Release/fast_readdir.node
+asarUnpack:
+  - build/Release/fast_readdir.node
+  - node_modules/sqlite3/**
+npmRebuild: false
 win:
-  executableName: DiskVision
+  executableName: DiskSizer
   target:
     - target: nsis
       arch:
         - x64
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
-  shortcutName: DiskVision
-  uninstallDisplayName: DiskVision
+  shortcutName: DiskSizer
+  uninstallDisplayName: DiskSizer
   createDesktopShortcut: always

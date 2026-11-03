@@ -1,20 +1,24 @@
 {
-  "name": "diskvision",
-  "version": "1.0.0",
-  "description": "Windows Disk Space Analyzer",
+  "name": "disksizer",
+  "version": "1.1.0",
+  "description": "Windows disk space explorer with file previews, allocation accounting and saved scans",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "npm run typecheck && electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "node --test tests/*.test.cjs",
     "preview": "electron-vite preview",
     "build:win": "npm run build:native && npm run build && electron-builder --win --config",
-    "build:unpack": "npm run build:native && npm run build && electron-builder --dir --config",
-    "build:native": "node-gyp configure build",
-    "benchmark": "tsx benchmark/run.ts"
+    "build:unpack": "npm run build:native && npm run build && electron-builder --dir --config.win.signAndEditExecutable=false",
+    "build:native": "node-gyp configure build --target=20.11.1",
+    "benchmark": "tsx benchmark/run.ts",
+    "benchmark:storage": "tsx benchmark/storage.ts"
   },
   "dependencies": {
     "d3": "^7.9.0",
     "lucide-react": "^0.344.0",
+    "sqlite3": "^5.1.7",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
@@ -37,5 +41,14 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.3.3"
+  },
+  "productName": "DiskSizer",
+  "homepage": "https://disksizer.whhite.com/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ibrahimokdadov/DiskSizer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ibrahimokdadov/DiskSizer/issues"
   }
 }

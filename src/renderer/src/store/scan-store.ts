@@ -1,19 +1,25 @@
 import { create } from 'zustand'
-import type { FileNode, ScanResult, ScanProgress, DriveInfo } from '../types/scan'
+import type { FileNode, ScanResult, ScanProgress, DriveInfo, DirectoryPage } from '../types/scan'
+import { canNavigate, isDirectChild, removeTreeNode, restoreNavigation } from '../lib/scan-tree'
+import { useUIStore } from './ui-store'
 
 interface ScanState {
-  // Scan data
   scanResult: ScanResult | null
   currentNode: FileNode | null
   navigationStack: FileNode[]
   drives: DriveInfo[]
-
-  // Scan status
+  drivesLoading: boolean
+  drivesError: string | null
+  activeScanId: string | null
+  activePath: string | null
   isScanning: boolean
+  isCancelling: boolean
   scanProgress: ScanProgress | null
   scanError: string | null
-
-  // Actions
+  actionError: string | null
+  directoryRevision: number
+  applyDirectoryPage: (page: DirectoryPage) => void
+  invalidateDirectoryPages: () => void
   setScanResult: (result: ScanResult | null) => void
   setCurrentNode: (node: FileNode) => void
   navigateIn: (node: FileNode) => void
@@ -23,6 +29,7 @@ interface ScanState {
   setIsScanning: (scanning: boolean) => void
   setScanProgress: (progress: ScanProgress | null) => void
   setScanError: (error: string | null) => void
+  setActionError: (error: string | null) => void
   removeNode: (path: string) => void
   reset: () => void
 }
@@ -32,104 +39,88 @@ export const useScanStore = create<ScanState>((set, get) => ({
   currentNode: null,
   navigationStack: [],
   drives: [],
+  drivesLoading: true,
+  drivesError: null,
+  activeScanId: null,
+  activePath: null,
   isScanning: false,
+  isCancelling: false,
   scanProgress: null,
   scanError: null,
+  actionError: null,
+  directoryRevision: 0,
 
-  setScanResult: (result) => set({
-    scanResult: result,
-    currentNode: result?.root || null,
-    navigationStack: result?.root ? [result.root] : [],
-    scanError: null
-  }),
-
-  setCurrentNode: (node) => set({ currentNode: node }),
-
-  navigateIn: (node) => {
-    if (node.type !== 'directory') return
-    const { navigationStack } = get()
+  setScanResult: result => {
+    const stack = result ? result.indexed ? [result.root] : restoreNavigation(result.root, get().navigationStack) : []
+    set({ scanResult: result, currentNode: stack[stack.length - 1] ?? null, navigationStack: stack, scanError: null, directoryRevision: get().directoryRevision + 1 })
+  },
+  applyDirectoryPage: page => {
+    const state = get()
+    if (!state.scanResult?.indexed || state.scanResult.scanId !== page.scanId || state.isScanning || state.currentNode?.path !== page.node.path) return
+    const stack = page.ancestors.map(node => node.path === page.node.path ? page.node : node)
+    if (!stack.length || stack[0].path !== state.scanResult.root.path || stack[stack.length - 1].path !== page.node.path) return
     set({
-      currentNode: node,
-      navigationStack: [...navigationStack, node]
+      currentNode: page.node, navigationStack: stack,
+      scanResult: { ...state.scanResult, root: page.root, totalSize: page.root.size,
+        totalFiles: page.root.fileCount ?? state.scanResult.totalFiles,
+        totalDirectories: page.root.directoryCount ?? state.scanResult.totalDirectories }
     })
   },
-
+  invalidateDirectoryPages: () => {
+    useUIStore.getState().resetSelection()
+    set(state => ({ directoryRevision: state.directoryRevision + 1 }))
+  },
+  setCurrentNode: node => set({ currentNode: node }),
+  navigateIn: node => {
+    const { currentNode, navigationStack, scanResult } = get()
+    if (!canNavigate(node) || currentNode?.path === node.path) return
+    const existing = navigationStack.findIndex(item => item.path === node.path)
+    if (existing < 0 && !currentNode?.children?.some(child => child.path === node.path) &&
+      !(scanResult?.indexed && currentNode && node.detailsAvailable && isDirectChild(currentNode.path, node.path))) return
+    const stack = existing >= 0 ? navigationStack.slice(0, existing + 1) : [...navigationStack, node]
+    useUIStore.getState().resetSelection()
+    set({ currentNode: stack[stack.length - 1], navigationStack: stack })
+  },
   navigateUp: () => {
-    const { navigationStack } = get()
-    if (navigationStack.length <= 1) return
-    const newStack = navigationStack.slice(0, -1)
-    set({
-      currentNode: newStack[newStack.length - 1],
-      navigationStack: newStack
-    })
+    const stack = get().navigationStack
+    if (stack.length > 1) get().navigateTo(stack.length - 2)
   },
-
-  navigateTo: (index) => {
-    const { navigationStack } = get()
-    if (index < 0 || index >= navigationStack.length) return
-    const newStack = navigationStack.slice(0, index + 1)
-    set({
-      currentNode: newStack[newStack.length - 1],
-      navigationStack: newStack
-    })
+  navigateTo: index => {
+    const stack = get().navigationStack
+    if (index < 0 || index >= stack.length) return
+    useUIStore.getState().resetSelection()
+    const next = stack.slice(0, index + 1)
+    set({ currentNode: next[next.length - 1], navigationStack: next })
   },
-
-  setDrives: (drives) => set({ drives }),
-  setIsScanning: (scanning) => set({ isScanning: scanning }),
-  setScanProgress: (progress) => set({ scanProgress: progress }),
-  setScanError: (error) => set({ scanError: error }),
-
-  removeNode: (targetPath) => {
-    const { scanResult, currentNode, navigationStack } = get()
+  setDrives: drives => set({ drives }),
+  setIsScanning: isScanning => set({ isScanning }),
+  setScanProgress: progress => set(state => ({
+    scanProgress: progress ? {
+      ...progress,
+      partialRoot: progress.partialRoot ?? (state.scanProgress?.scanId === progress.scanId ? state.scanProgress.partialRoot : undefined)
+    } : null
+  })),
+  setScanError: scanError => set({ scanError }),
+  setActionError: actionError => set({ actionError }),
+  removeNode: targetPath => {
+    const { scanResult, navigationStack } = get()
     if (!scanResult) return
-
-    function removeFromTree(node: FileNode): FileNode {
-      if (!node.children) return node
-      const newChildren = node.children
-        .filter(c => c.path !== targetPath)
-        .map(c => removeFromTree(c))
-      const newSize = newChildren.reduce((sum, c) => sum + c.size, 0)
-      const newItemCount = newChildren.reduce((sum, c) => sum + (c.type === 'directory' ? (c.itemCount || 0) + 1 : 1), 0)
-      return { ...node, children: newChildren, size: newSize, itemCount: newItemCount }
-    }
-
-    const newRoot = removeFromTree(scanResult.root)
-    const newResult = {
-      ...scanResult,
-      root: newRoot,
-      totalSize: newRoot.size
-    }
-
-    // Update navigation stack
-    const newStack = navigationStack.map(n => {
-      function findNode(tree: FileNode, path: string): FileNode | null {
-        if (tree.path === path) return tree
-        if (tree.children) {
-          for (const child of tree.children) {
-            const found = findNode(child, path)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      return findNode(newRoot, n.path) || n
-    })
-
-    const newCurrentNode = newStack[newStack.length - 1] || newRoot
-
+    const change = removeTreeNode(scanResult.root, targetPath)
+    if (!change.removed) return
+    const stack = restoreNavigation(change.root, navigationStack)
+    useUIStore.getState().resetSelection()
     set({
-      scanResult: newResult,
-      currentNode: newCurrentNode,
-      navigationStack: newStack
+      scanResult: {
+        ...scanResult, root: change.root, totalSize: change.root.size,
+        totalFiles: Math.max(0, scanResult.totalFiles - change.files),
+        totalDirectories: Math.max(0, scanResult.totalDirectories - change.directories)
+      },
+      currentNode: stack[stack.length - 1], navigationStack: stack
     })
   },
-
-  reset: () => set({
-    scanResult: null,
-    currentNode: null,
-    navigationStack: [],
-    isScanning: false,
-    scanProgress: null,
-    scanError: null
-  })
+  reset: () => {
+    useUIStore.getState().resetSelection()
+    set({ scanResult: null, currentNode: null, navigationStack: [], activeScanId: null, activePath: null,
+      isScanning: false, isCancelling: false, scanProgress: null, scanError: null, actionError: null, directoryRevision: 0 })
+  }
 }))

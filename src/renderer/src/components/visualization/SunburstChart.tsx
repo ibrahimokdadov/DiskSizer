@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState } from 'react'
+import { useMemo, useCallback } from 'react'
 import * as d3 from 'd3'
 import type { FileNode } from '../../types/scan'
 import { getFileColor, getDirectoryColor } from '../../lib/colors'
@@ -25,36 +25,33 @@ export function SunburstChart({ node, width, height }: Props) {
   const navigateIn = useScanStore(s => s.navigateIn)
   const navigateUp = useScanStore(s => s.navigateUp)
   const setSelectedNode = useUIStore(s => s.setSelectedNode)
+  const setViewMode = useUIStore(s => s.setViewMode)
   const setTooltip = useUIStore(s => s.setTooltip)
   const { showContextMenu } = useContextMenu()
-  const [focusNode, setFocusNode] = useState<d3.HierarchyRectangularNode<FileNode> | null>(null)
 
   const radius = Math.min(width, height) / 2 - 10
 
-  // Create a shallow copy limited to 3 levels for D3 performance
+  // Bound only the rendered records; preserve the size of every omitted item.
   const shallowNode = useMemo(() => {
-    function shallow(n: FileNode, depth: number): FileNode {
-      if (depth >= 3 || n.type === 'file' || !n.children) return { ...n, children: undefined }
-      return {
-        ...n,
-        children: n.children.slice(0, 60).map(c => shallow(c, depth + 1))
-      }
-    }
-    return shallow(node, 0)
+    const sorted = [...(node.children || [])].sort((a, b) => b.size - a.size)
+    const children: FileNode[] = sorted.slice(0, 80).map(child => ({ ...child, children: undefined }))
+    const rest = sorted.slice(80)
+    if (rest.length) children.push({ name: `Other (${rest.length} items)`, path: '', size: rest.reduce((sum, child) => sum + child.size, 0), type: 'directory', kind: 'aggregate', itemCount: rest.length })
+    return { ...node, children }
   }, [node])
 
   const { arcs, rootNode } = useMemo(() => {
     if (radius <= 0) return { arcs: [], rootNode: null }
 
-    const root = d3.hierarchy(shallowNode)
-      .sum(d => d.type === 'file' ? d.size : (d.children ? 0 : d.size))
+    const root = d3.hierarchy<FileNode>(shallowNode)
+      .sum(d => d.children?.length ? 0 : d.size)
       .sort((a, b) => (b.value || 0) - (a.value || 0))
 
     const partition = d3.partition<FileNode>()
       .size([2 * Math.PI, radius])
 
     const partitioned = partition(root)
-    const focus = focusNode || partitioned
+    const focus = partitioned
 
     const arcData: ArcData[] = []
 
@@ -79,7 +76,7 @@ export function SunburstChart({ node, width, height }: Props) {
     })
 
     return { arcs: arcData, rootNode: partitioned }
-  }, [node, radius, focusNode])
+  }, [shallowNode, radius])
 
   const arcGenerator = useMemo(() => {
     return d3.arc<ArcData>()
@@ -93,27 +90,18 @@ export function SunburstChart({ node, width, height }: Props) {
 
   // Find the real node (with full children) from the original tree by path
   const findRealNode = useCallback((targetPath: string): FileNode | null => {
-    function find(n: FileNode): FileNode | null {
-      if (n.path === targetPath) return n
-      if (n.children) {
-        for (const c of n.children) {
-          const found = find(c)
-          if (found) return found
-        }
-      }
-      return null
-    }
-    return find(node)
+    return node.path === targetPath ? node : node.children?.find(child => child.path === targetPath) || null
   }, [node])
 
   const handleClick = useCallback((arc: ArcData, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (arc.data.kind === 'aggregate') { setTooltip(null); setViewMode('list'); return }
     const realNode = findRealNode(arc.data.path) || arc.data
-    if (realNode.type === 'directory') {
+    if (realNode.type === 'directory' && realNode.childrenLoaded !== false && realNode.status !== 'error' && realNode.status !== 'skipped') {
       navigateIn(realNode)
     }
     setSelectedNode(realNode)
-  }, [navigateIn, setSelectedNode, findRealNode])
+  }, [navigateIn, setSelectedNode, findRealNode, setTooltip, setViewMode])
 
   const handleCenterClick = useCallback(() => {
     navigateUp()
@@ -192,7 +180,7 @@ export function SunburstChart({ node, width, height }: Props) {
               strokeWidth={0.5}
               className="cursor-pointer hover:brightness-125 transition-all duration-150"
               onClick={(e) => handleClick(arc, e)}
-              onContextMenu={(e) => showContextMenu(e, findRealNode(arc.data.path) || arc.data)}
+              onContextMenu={(e) => { if (arc.data.kind !== 'aggregate') showContextMenu(e, findRealNode(arc.data.path) || arc.data) }}
               onMouseMove={(e) => handleMouseMove(arc, e)}
               onMouseLeave={handleMouseLeave}
             />

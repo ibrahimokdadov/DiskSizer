@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DiskSizer — Fast Windows Disk Space Analyzer</title>
-  <meta name="description" content="Visualize what's eating your disk with interactive sunburst and treemap charts. Native HDD scanner, live progress, 1.92× faster than standard scanners. Free and open source." />
+  <title>DiskSizer — Understand Your Disk Space</title>
+  <meta name="description" content="Find large files, preview what they contain, and understand logical and on-disk sizes. DiskSizer for Windows includes global search, visual maps, and saved scans." />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://disksizer.whhite.com/" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://disksizer.whhite.com/" />
-  <meta property="og:title" content="DiskSizer — Fast Windows Disk Space Analyzer" />
-  <meta property="og:description" content="Interactive sunburst and treemap charts. Native HDD scanner. 1.92× faster. Free and open source for Windows." />
-  <meta property="og:image" content="https://disksizer.whhite.com/og-image.svg" />
+  <meta property="og:title" content="DiskSizer — Understand Your Disk Space" />
+  <meta property="og:description" content="Find large files. Preview before cleanup. Explore on-disk sizes and saved scans with DiskSizer for Windows." />
+  <meta property="og:image" content="https://disksizer.whhite.com/og-image-v1.1.svg" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="DiskSizer" />
-  <meta name="twitter:description" content="Visualize what's eating your disk. Sunburst charts, treemap, native HDD scanner, 1.92× faster." />
-  <meta name="twitter:image" content="https://disksizer.whhite.com/og-image.svg" />
+  <meta name="twitter:description" content="A clearer view of your storage: largest files, previews, on-disk accounting, and saved scans for Windows." />
+  <meta name="twitter:image" content="https://disksizer.whhite.com/og-image-v1.1.svg" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"DiskSizer","description":"Fast Windows disk space analyzer with interactive sunburst and treemap charts, live scan progress, and a native HDD scanner.","url":"https://disksizer.whhite.com","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","email":"ibrahim@whhite.com"}}
-  </script>
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"DiskSizer","softwareVersion":"1.1.0","description":"Windows disk space explorer with global search, file previews, allocation accounting and saved scans.","url":"https://disksizer.whhite.com/","downloadUrl":"https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows 10 or 11 (x64)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Ibrahim Okdadov"}}
+</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
@@ -32,8 +32,8 @@
       --border: #1E1E2C;
       --border2:#28283A;
       --text:   #CDD5E8;
-      --text2:  #60709A;
-      --text3:  #2C3050;
+      --text2:  #96A3BD;
+      --text3:  #73809A;
       --violet: #7C3AED;
       --violet2:#A78BFA;
       --vdim:   rgba(124,58,237,0.12);
@@ -50,7 +50,11 @@
       --cyan:   #38BDF8;
     }
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-    html { scroll-behavior:smooth; }
+    html { scroll-behavior:smooth; overflow-x:clip; }
+    section { scroll-margin-top:76px; }
+    .hero-grid > *, .perf-grid > * { min-width:0; }
+    .bench-context a { color:var(--violet2); text-underline-offset:4px; }
+    .chart-caption { position:absolute; left:0; bottom:-12px; color:var(--text2); font-size:11px; }
 
     body {
       background: var(--bg);
@@ -358,7 +362,7 @@
       gap:60px; align-items:center; margin-top:0;
     }
     .metrics {
-      display:grid; grid-template-columns:repeat(3,1fr); gap:20px;
+      display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px;
     }
     .metric {
       background:var(--bg2);
@@ -492,7 +496,7 @@
       .feat { border-right:none; border-bottom:1px solid var(--border); }
       .feat:last-child { border-bottom:none; }
       .perf-grid { grid-template-columns:1fr; gap:40px; }
-      .metrics { grid-template-columns:repeat(3,1fr); }
+      .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .stack-grid { grid-template-columns:repeat(2,1fr); }
       .nav-links { display:none; }
       .stats-row { gap:12px; }
@@ -516,9 +520,9 @@
         <ul class="nav-links">
           <li><a href="#features">Features</a></li>
           <li><a href="#performance">Performance</a></li>
-          <li><a href="#stack">Stack</a></li>
+          <li><a href="#stack">Get started</a></li>
           <li>
-            <a href="https://github.com/ibrahimokdadov/windowsDiskV" class="nav-gh" target="_blank" rel="noopener">
+            <a href="https://github.com/ibrahimokdadov/DiskSizer" class="nav-gh" target="_blank" rel="noopener">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
               </svg>
@@ -539,24 +543,20 @@
         <div>
           <p class="hero-eyebrow rise">Windows Disk Analyzer</p>
           <h1 class="rise d1">See what's eating<br>your <span>disk space.</span></h1>
-          <p class="hero-sub rise d2">
-            Interactive sunburst and treemap charts powered by D3.
-            A native HDD scanner that eliminates per-file syscalls.
-            Live scan progress. Open source, free forever.
-          </p>
+          <p class="hero-sub rise d2">Find the largest files, preview what they contain, and see how much space they occupy. Search your whole scan and save it for another look.</p>
           <div class="ctas rise d3">
-            <a href="https://github.com/ibrahimokdadov/windowsDiskV" class="btn btn-primary" target="_blank" rel="noopener">
+            <a href="https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip" class="btn btn-primary" target="_blank" rel="noopener">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
               </svg>
-              View on GitHub
+              Download Windows ZIP
             </a>
             <a href="#features" class="btn btn-outline rise d4">Explore features</a>
           </div>
         </div>
 
         <!-- Sunburst -->
-        <div class="sunburst-wrap rise d2">
+        <div class="sunburst-wrap rise d2" aria-label="Illustrative disk usage chart">
           <svg id="sunburst-svg" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <filter id="glow">
@@ -571,7 +571,7 @@
             <text x="240" y="235" text-anchor="middle" font-family="'Outfit', sans-serif" font-size="11" font-weight="700" fill="#7C3AED">DISK</text>
             <text x="240" y="252" text-anchor="middle" font-family="'DM Sans', sans-serif" font-size="10" fill="#60709A">USAGE</text>
           </svg>
-          <div class="sb-legend" id="sb-legend"></div>
+          <div class="sb-legend" id="sb-legend"></div><p class="chart-caption">Illustrative data</p>
         </div>
 
       </div>
@@ -582,14 +582,12 @@
   <div class="stats">
     <div class="container">
       <div class="stats-row">
-        <div class="stat"><span class="stat-icon">◈</span> <strong>Electron 28</strong> desktop app</div>
-        <div class="stat"><span class="stat-icon">▦</span> Sunburst <strong>&amp;</strong> Treemap charts</div>
-        <div class="stat"><span class="stat-icon">▲</span> <strong>1.92×</strong> faster scanner</div>
-        <div class="stat"><span class="stat-icon">↓</span> <strong>−73%</strong> heap usage</div>
-        <div class="stat"><span class="stat-icon">◆</span> <strong>Free</strong> &amp; open source</div>
-      </div>
-    </div>
-  </div>
+ <div class="stat"><span class="stat-icon">◈</span> <strong>Windows</strong> 10 &amp; 11</div>
+ <div class="stat"><span class="stat-icon">▦</span> <strong>Visual</strong> disk maps</div>
+ <div class="stat"><span class="stat-icon">⌕</span> <strong>Global</strong> file search</div>
+ <div class="stat"><span class="stat-icon">↓</span> <strong>Saved</strong> scans</div>
+ <div class="stat"><span class="stat-icon">◆</span> <strong>v1.1.0</strong> available</div>
+ </div></div></div>
 
   <!-- ── Features ── -->
   <section class="section" id="features">
@@ -597,29 +595,17 @@
       <p class="section-eye">Features</p>
       <h2>Everything to understand<br>your storage at a glance</h2>
       <div class="feat-grid">
-        <div class="feat">
-          <div class="feat-icon">◉</div>
-          <h3>Sunburst &amp; Treemap Charts</h3>
-          <p>Two interactive D3-powered views. Click any segment to drill into a directory, press Esc to navigate back up. Every file and folder visualized in proportion to its size.</p>
-        </div>
-        <div class="feat">
-          <div class="feat-icon">▷</div>
-          <h3>Live Scan Progress</h3>
-          <p>Files and sizes accumulate in real time as the scanner works. A progress overlay keeps you informed — no waiting blindly for a result to appear.</p>
-        </div>
-        <div class="feat">
-          <div class="feat-icon">⚡</div>
-          <h3>HDD-Aware Native Scanner</h3>
-          <p>Auto-detects drive type via WMI. On HDDs, a native C++ addon uses <code>FindFirstFileExW</code> to read file sizes from directory entries directly — eliminating all per-file <code>stat()</code> syscalls.</p>
-        </div>
-      </div>
-
-      <!-- Treemap demo -->
-      <div style="margin-top:48px">
-        <div class="treemap-demo">
+<div class="feat"><div class="feat-icon">⌕</div><h3>Find the files that matter</h3><p>Search all scanned files by name, type, or modification age. Sort by logical size or on-disk allocation and open any containing folder.</p></div>
+<div class="feat"><div class="feat-icon">◉</div><h3>See the bigger picture</h3><p>Explore your storage in a largest-first list, treemap, or sunburst. Drill into folders while smaller map entries remain available in the list.</p></div>
+<div class="feat"><div class="feat-icon">▷</div><h3>Preview before cleanup</h3><p>Select a file to inspect its details and supported media previews. Open it in Explorer and review it before choosing to recycle it.</p></div>
+<div class="feat"><div class="feat-icon">◈</div><h3>Understand on-disk sizes</h3><p>See logical size and measured allocation, with shared hardlinks counted once in folder totals. Unknown values stay visible; allocation is not a promise of reclaimable space.</p></div>
+<div class="feat"><div class="feat-icon">↓</div><h3>Return to a saved scan</h3><p>Scans save automatically. Export a copy or reopen a dated, read-only result. Rescan when you need current information or want to delete files.</p></div>
+<div class="feat"><div class="feat-icon">◷</div><h3>Stay in control</h3><p>Follow live counts and stop a scan when needed. Partial results and inaccessible folders are identified so you can see what was covered.</p></div>
+</div>
+<div class="treemap-demo">
           <div class="treemap-bar">
             <div class="treemap-dot" style="background:#7C3AED"></div>
-            <span class="treemap-path">C:\ — 512 GB — Treemap view</span>
+            <span class="treemap-path">Illustrative data — Treemap view</span>
           </div>
           <div class="treemap-grid" id="treemap-grid">
             <!-- Rendered by JS -->
@@ -632,134 +618,32 @@
   <!-- ── Performance ── -->
   <hr class="sep">
   <section class="perf-section" id="performance">
-    <div class="container">
-      <div class="perf-grid">
-        <div>
-          <p class="section-eye">Performance</p>
-          <h2 style="margin-bottom:24px">Engineered for<br>real-world disks</h2>
-          <div class="metrics">
-            <div class="metric m-amber">
-              <div class="metric-val">1.18×</div>
-              <div class="metric-label">faster on large trees<br>(3M+ files)</div>
-            </div>
-            <div class="metric m-violet">
-              <div class="metric-val">1.92×</div>
-              <div class="metric-label">faster on smaller dirs</div>
-            </div>
-            <div class="metric m-green">
-              <div class="metric-val">−73%</div>
-              <div class="metric-label">heap usage reduction</div>
-            </div>
-          </div>
-        </div>
-        <div class="bench-context">
-          <h3>IMF-style scanner architecture</h3>
-          <p>
-            Inspired by the XN-Graph SIGIR '25 paper on disk-based nearest-neighbor search,
-            the scanner applies an In-Memory First (IMF) strategy: instead of waiting on each
-            I/O batch, it keeps 64 requests in flight simultaneously, eliminating the idle gap
-            between completions.
-          </p>
-          <p>
-            On HDDs, a native C++ N-API addon (<code>FindFirstFileExW</code>) fetches file sizes
-            directly from directory entries — no additional <code>stat()</code> per file.
-            On SSDs, the IMF scanner runs with unlimited parallelism.
-          </p>
-          <table class="bench-table">
-            <thead>
-              <tr><th>Workload</th><th>Before</th><th>After</th><th>Gain</th></tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>3M files (large tree)</td>
-                <td class="before">81.1s</td>
-                <td class="after">68.8s</td>
-                <td class="gain">1.18×</td>
-              </tr>
-              <tr>
-                <td>Smaller directories</td>
-                <td class="before">baseline</td>
-                <td class="after">—</td>
-                <td class="gain">1.92×</td>
-              </tr>
-              <tr>
-                <td>Heap allocation</td>
-                <td class="before">~100%</td>
-                <td class="after">~27%</td>
-                <td class="gain">−73%</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </section>
+ <div class="container"><div class="perf-grid"><div>
+ <p class="section-eye">Performance</p><h2 style="margin-bottom:24px">Measured with<br>the details attached</h2>
+ <div class="metrics"><div class="metric m-amber"><div class="metric-val">~2.2s</div><div class="metric-label">observed scan time<br>on our test folder</div></div><div class="metric m-violet"><div class="metric-val">14,950</div><div class="metric-label">files in the<br>measured workload</div></div></div>
+ </div><div class="bench-context"><h3>A local measurement, with limits</h3>
+ <p>Version 1.1.0 scanned a development dependency folder with 14,950 files and 1,895 directories in 2.197, 2.188, and 2.100 seconds on our Windows test machine. These repeated runs did not control cold-cache conditions.</p>
+ <p>The timings include allocation metadata and saved indexing, and exclude drive discovery and final UI rendering. They are not a whole-drive estimate or a comparison with other disk analyzers.</p>
+ <p>Saved indexing keeps file records out of the JavaScript heap, but uses additional disk space and write time. Scan speed depends on your drive, file count, permissions, and cache state.</p>
+ <p><a href="https://github.com/ibrahimokdadov/DiskSizer/blob/master/docs/plans/2026-11-03-adopted-priorities.md" target="_blank" rel="noopener">Read the measurements and tradeoffs →</a></p>
+ </div></div></div></section>
 
   <!-- ── Stack ── -->
   <hr class="sep">
-  <section class="stack-section" id="stack">
-    <div class="container">
-      <p class="section-eye">Technology</p>
-      <h2>Built on a solid<br>modern stack</h2>
-      <div class="stack-grid">
-        <div class="stack-item">
-          <div class="stack-badge" style="background:rgba(59,130,246,0.12);color:#3B82F6">⬡</div>
-          <div>
-            <div class="stack-name">Electron 28</div>
-            <div class="stack-role">Native desktop shell</div>
-          </div>
-        </div>
-        <div class="stack-item">
-          <div class="stack-badge" style="background:rgba(96,165,250,0.12);color:#60A5FA">⚛</div>
-          <div>
-            <div class="stack-name">React 18</div>
-            <div class="stack-role">UI framework</div>
-          </div>
-        </div>
-        <div class="stack-item">
-          <div class="stack-badge" style="background:rgba(167,139,250,0.12);color:#A78BFA">▲</div>
-          <div>
-            <div class="stack-name">D3 v7</div>
-            <div class="stack-role">Sunburst &amp; treemap charts</div>
-          </div>
-        </div>
-        <div class="stack-item">
-          <div class="stack-badge" style="background:rgba(245,158,11,0.12);color:#F59E0B">⚡</div>
-          <div>
-            <div class="stack-name">C++ N-API Addon</div>
-            <div class="stack-role">Native HDD scanner</div>
-          </div>
-        </div>
-        <div class="stack-item">
-          <div class="stack-badge" style="background:rgba(16,185,129,0.12);color:#10B981">◈</div>
-          <div>
-            <div class="stack-name">TypeScript</div>
-            <div class="stack-role">Fully typed codebase</div>
-          </div>
-        </div>
-        <div class="stack-item">
-          <div class="stack-badge" style="background:rgba(56,189,248,0.12);color:#38BDF8">◆</div>
-          <div>
-            <div class="stack-name">Tailwind CSS</div>
-            <div class="stack-role">Styling</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+  <section class="section" id="stack"><div class="container"><p class="section-eye">Getting started</p><h2>Your storage,<br>in three steps</h2><div class="feat-grid"><div class="feat"><h3>1. Open DiskSizer</h3><p>Download the Windows x64 ZIP, extract the entire archive, and run DiskSizer.exe. This build is unsigned.</p></div><div class="feat"><h3>2. Choose a location</h3><p>Select a drive or folder. Normal scans need no administrator access; inaccessible locations are reported.</p></div><div class="feat"><h3>3. Explore and review</h3><p>Find large files, inspect previews, and save a copy of your scan. Saved scans occupy disk space until you remove them.</p></div></div></div></section>
 
   <!-- ── CTA ── -->
   <hr class="sep">
   <section class="cta">
     <div class="container">
-      <h2>Know your disk.<br>Reclaim your space.</h2>
-      <p>Free, open source, built for Windows.</p>
+      <h2>Know your disk.<br>Choose what stays.</h2>
+      <p>DiskSizer 1.1.0 · Windows 10 &amp; 11 · x64</p>
       <div class="ctas">
-        <a href="https://github.com/ibrahimokdadov/windowsDiskV" class="btn btn-primary" target="_blank" rel="noopener">
+        <a href="https://github.com/ibrahimokdadov/DiskSizer/releases/download/v1.1.0/DiskSizer-1.1.0-windows-x64.zip" class="btn btn-primary" target="_blank" rel="noopener">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
           </svg>
-          Get DiskSizer
+          Download Windows ZIP
         </a>
       </div>
     </div>
@@ -769,10 +653,10 @@
   <footer>
     <div class="container">
       <div class="foot-row">
-        <span>DiskSizer — open source, free forever</span>
+        <span>DiskSizer — a clearer view of your storage</span>
         <div class="foot-links">
-          <a href="https://github.com/ibrahimokdadov/windowsDiskV" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://github.com/ibrahimokdadov/windowsDiskV/issues" target="_blank" rel="noopener">Issues</a>
+          <a href="https://github.com/ibrahimokdadov/DiskSizer" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/ibrahimokdadov/DiskSizer/issues" target="_blank" rel="noopener">Issues</a>
           <a href="/llms.txt">llms.txt</a>
         </div>
       </div>

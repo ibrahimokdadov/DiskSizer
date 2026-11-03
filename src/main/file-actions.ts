@@ -1,8 +1,19 @@
 import { shell, dialog, BrowserWindow } from 'electron'
 import { promises as fs } from 'fs'
 import * as path from 'path'
+import { createMediaUrl } from './media-protocol'
+
+function validatePath(filePath: string): void {
+  if (typeof filePath !== 'string' || !filePath.trim() || !path.isAbsolute(filePath) || filePath.includes('\0')) {
+    throw new Error('Choose a valid local file or folder.')
+  }
+}
 
 export async function deleteItem(filePath: string, window: BrowserWindow): Promise<boolean> {
+  validatePath(filePath)
+  if (path.resolve(filePath) === path.parse(path.resolve(filePath)).root) {
+    throw new Error('A drive cannot be moved to the Recycle Bin.')
+  }
   const name = path.basename(filePath)
   const { response } = await dialog.showMessageBox(window, {
     type: 'warning',
@@ -22,6 +33,7 @@ export async function deleteItem(filePath: string, window: BrowserWindow): Promi
 }
 
 export function openInExplorer(filePath: string): void {
+  validatePath(filePath)
   shell.showItemInFolder(filePath)
 }
 
@@ -29,6 +41,7 @@ export interface FilePreview {
   type: 'image' | 'text' | 'video' | 'audio' | 'unsupported'
   content?: string
   filePath?: string
+  url?: string
   mimeType?: string
   size: number
   name: string
@@ -40,28 +53,34 @@ const VIDEO_EXTS = new Set(['mp4', 'webm', 'mkv', 'avi', 'mov'])
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma'])
 
 export async function getFilePreview(filePath: string): Promise<FilePreview> {
+  validatePath(filePath)
   const ext = path.extname(filePath).toLowerCase().slice(1)
   const name = path.basename(filePath)
   const stat = await fs.stat(filePath)
+  if (!stat.isFile()) throw new Error('Select a file to preview.')
 
   if (IMAGE_EXTS.has(ext)) {
-    return { type: 'image', filePath, size: stat.size, name }
+    return { type: 'image', url: createMediaUrl(filePath), size: stat.size, name }
   }
 
   if (VIDEO_EXTS.has(ext)) {
-    return { type: 'video', filePath, size: stat.size, name }
+    return { type: 'video', url: createMediaUrl(filePath), size: stat.size, name }
   }
 
   if (AUDIO_EXTS.has(ext)) {
-    return { type: 'audio', filePath, size: stat.size, name }
+    return { type: 'audio', url: createMediaUrl(filePath), size: stat.size, name }
   }
 
   if (TEXT_EXTS.has(ext) || stat.size < 100_000) {
     try {
       const buffer = Buffer.alloc(10240)
       const fd = await fs.open(filePath, 'r')
-      const { bytesRead } = await fd.read(buffer, 0, 10240, 0)
-      await fd.close()
+      let bytesRead: number
+      try {
+        ;({ bytesRead } = await fd.read(buffer, 0, 10240, 0))
+      } finally {
+        await fd.close()
+      }
       const content = buffer.slice(0, bytesRead).toString('utf-8')
       // Check if content is valid text (no null bytes in first 512 bytes)
       const sample = content.slice(0, 512)

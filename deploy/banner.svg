@@ -98,7 +98,7 @@
   <text x="180" y="244" font-family="monospace" font-size="13" fill="#475569">+</text>
   <text x="196" y="244" font-family="monospace" font-size="13" fill="#8b5cf6">▦ Treemap</text>
   <text x="320" y="244" font-family="monospace" font-size="13" fill="#475569">+</text>
-  <text x="336" y="244" font-family="monospace" font-size="13" fill="#06b6d4">⚡ IMF Scanner</text>
+  <text x="336" y="244" font-family="monospace" font-size="13" fill="#06b6d4">◈ Saved Scans</text>
 
   <!-- Tech badge row -->
   <g transform="translate(72, 268)">
@@ -119,8 +119,8 @@
   <!-- Benchmark callout -->
   <rect x="72" y="312" width="480" height="52" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
   <rect x="72" y="312" width="4" height="52" rx="2" fill="#6366f1"/>
-  <text x="88" y="334" font-family="monospace" font-size="11" fill="#94a3b8">IMF scanner benchmark  ·  3M files  ·  warm cache</text>
-  <text x="88" y="353" font-family="monospace" font-size="12" fill="#e2e8f0">81.14s → 68.76s  <tspan fill="#10b981" font-weight="bold">1.18× faster</tspan>  ·  heap <tspan fill="#10b981" font-weight="bold">-73%</tspan>  (257MB → 69MB)</text>
+  <text x="88" y="334" font-family="monospace" font-size="11" fill="#94a3b8">Global search  ·  File previews  ·  On-disk accounting</text>
+  <text x="88" y="353" font-family="monospace" font-size="12" fill="#e2e8f0">Inspect large files. Save a scan. Review before cleanup.</text>
 
   <!-- Author -->
   <text x="1180" y="390" text-anchor="end" font-family="monospace" font-size="10" fill="#334155">by ibrahimokdadov</text>

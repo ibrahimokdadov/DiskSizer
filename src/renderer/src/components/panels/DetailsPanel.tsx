@@ -1,190 +1,56 @@
-import { useState, useEffect } from 'react'
-import { X, Eye, FolderOpen, Trash2, Copy, File, Folder, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react'
+import { X, Eye, FolderOpen, Trash2, Copy, File, Folder, Info } from 'lucide-react'
 import { useUIStore } from '../../store/ui-store'
 import { useFileActions } from '../../hooks/useFileActions'
 import { useScanStore } from '../../store/scan-store'
 import { formatBytes, formatNumber } from '../../lib/format'
-import { getFileColor, getFileCategory } from '../../lib/colors'
+import { getFileCategory } from '../../lib/colors'
 import { PreviewPanel } from './PreviewPanel'
-import { classifyNode, SAFETY_META } from '../../lib/safety'
-import type { FileNode } from '../../types/scan'
+import { classifyNode, getSafetyNote, SAFETY_META } from '../../lib/safety'
+import { canRecycleNode } from '../../lib/scan-tree'
 
 export function DetailsPanel() {
-  const selectedNode = useUIStore(s => s.selectedNode)
+  const node = useUIStore(s => s.selectedNode)
   const showPreview = useUIStore(s => s.showPreview)
   const setSelectedNode = useUIStore(s => s.setSelectedNode)
   const setShowPreview = useUIStore(s => s.setShowPreview)
-  const scanResult = useScanStore(s => s.scanResult)
+  const isScanning = useScanStore(s => s.isScanning)
+  const result = useScanStore(s => s.scanResult)
   const { openInExplorer, deleteItem, copyPath } = useFileActions()
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (copied) {
-      const t = setTimeout(() => setCopied(false), 1500)
-      return () => clearTimeout(t)
-    }
-  }, [copied])
-
-  if (!selectedNode) return null
-
-  const color = selectedNode.type === 'directory'
-    ? '#38bdf8'
-    : getFileColor(selectedNode.extension)
-  const category = selectedNode.type === 'directory' ? 'Directory' : getFileCategory(selectedNode.extension)
-  const percentage = scanResult?.totalSize
-    ? ((selectedNode.size / scanResult.totalSize) * 100).toFixed(1)
-    : '0'
-
-  const handleCopyPath = () => {
-    copyPath(selectedNode)
-    setCopied(true)
-  }
-
-  const handleDelete = async () => {
-    await deleteItem(selectedNode)
-    setSelectedNode(null)
-  }
-
-  return (
-    <div className="w-[300px] bg-surface border-l border-gray-800 flex flex-col shrink-0">
-      <div className="flex items-center justify-between p-3 border-b border-gray-800">
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Details</h3>
-        <button
-          onClick={() => setSelectedNode(null)}
-          className="p-1 rounded hover:bg-surface-elevated text-gray-500 hover:text-gray-300"
-        >
-          <X size={14} />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Header */}
-        <div className="flex items-start gap-3">
-          <div className="p-2 rounded-lg" style={{ backgroundColor: color + '20' }}>
-            {selectedNode.type === 'directory' ? (
-              <Folder size={20} style={{ color }} />
-            ) : (
-              <File size={20} style={{ color }} />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-200 break-all">{selectedNode.name}</p>
-            <p className="text-xs text-gray-500 capitalize">{category}</p>
-            <div className="mt-1">
-              <SafetyBadge node={selectedNode} />
-            </div>
-          </div>
-        </div>
-
-        {/* Info Grid */}
-        <div className="space-y-2.5">
-          <InfoRow label="Size" value={formatBytes(selectedNode.size)} />
-          <InfoRow label="% of Total" value={percentage + '%'} />
-          {selectedNode.type === 'directory' && selectedNode.itemCount !== undefined && (
-            <InfoRow label="Items" value={formatNumber(selectedNode.itemCount)} />
-          )}
-          {selectedNode.extension && (
-            <InfoRow label="Extension" value={'.' + selectedNode.extension} />
-          )}
-          {selectedNode.modified && (
-            <InfoRow label="Modified" value={new Date(selectedNode.modified).toLocaleDateString()} />
-          )}
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Path</p>
-            <p className="text-xs text-gray-300 break-all font-mono bg-surface-elevated rounded p-1.5">
-              {selectedNode.path}
-            </p>
-          </div>
-        </div>
-
-        {/* Size Bar */}
-        <div>
-          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${Math.max(1, parseFloat(percentage))}%`,
-                backgroundColor: color
-              }}
-            />
-          </div>
-          <p className="text-[10px] text-gray-500 mt-1">{percentage}% of scanned total</p>
-        </div>
-
-        {/* Actions */}
-        <div className="space-y-1.5">
-          {selectedNode.type === 'file' && (
-            <ActionButton
-              icon={<Eye size={14} />}
-              label="Preview"
-              onClick={() => setShowPreview(!showPreview)}
-            />
-          )}
-          <ActionButton
-            icon={<FolderOpen size={14} />}
-            label="Open in Explorer"
-            onClick={() => openInExplorer(selectedNode)}
-          />
-          <ActionButton
-            icon={<Copy size={14} />}
-            label={copied ? 'Copied!' : 'Copy Path'}
-            onClick={handleCopyPath}
-          />
-          <ActionButton
-            icon={<Trash2 size={14} />}
-            label="Delete"
-            onClick={handleDelete}
-            variant="danger"
-          />
-        </div>
-
-        {/* Preview */}
-        {showPreview && selectedNode.type === 'file' && (
-          <PreviewPanel node={selectedNode} />
-        )}
-      </div>
-    </div>
-  )
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-xs text-gray-500">{label}</span>
-      <span className="text-xs text-gray-300 font-medium">{value}</span>
-    </div>
-  )
-}
-
-function ActionButton({ icon, label, onClick, variant = 'default' }: {
-  icon: React.ReactNode
-  label: string
-  onClick: () => void
-  variant?: 'default' | 'danger'
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-        variant === 'danger'
-          ? 'text-red-400 hover:bg-red-500/10'
-          : 'text-gray-300 hover:bg-surface-elevated'
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-  )
-}
-
-function SafetyBadge({ node }: { node: FileNode }) {
+  if (!node || node.kind === 'aggregate') return null
+  const canDelete = canRecycleNode(node, result, isScanning)
+  const category = node.type === 'directory' ? 'Folder' : getFileCategory(node.extension)
   const level = classifyNode(node)
-  const { label, color, bg } = SAFETY_META[level]
-  const Icon = level === 'safe' ? ShieldCheck : level === 'unsafe' ? ShieldAlert : ShieldQuestion
+
   return (
-    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium ${color} ${bg}`}>
-      <Icon size={11} />
-      {label}
-    </div>
+    <aside className="inspector" aria-label="Selected item details">
+      <div className="inspector-heading"><span>DETAILS</span><button className="icon-button" onClick={() => setSelectedNode(null)} aria-label="Close details" title="Close details (Esc)"><X size={16} /></button></div>
+      <div className="inspector-content">
+        <div className="inspector-icon">{node.type === 'directory' ? <Folder size={25} strokeWidth={1.5} /> : <File size={25} strokeWidth={1.5} />}</div>
+        <h2 className="inspector-name selectable">{node.name}</h2>
+        <p className="inspector-type">{category}{node.extension ? ' · ' + node.extension.toUpperCase() : ''}</p>
+        <div className="inspector-size">{formatBytes(node.size)}</div>
+        <p className="inspector-size-label">{node.childrenLoaded === false ? 'Partial file size' : 'File size · logical bytes'}</p>
+        <div className="inspector-metadata">
+          <div className="inspector-row"><span>On disk</span><strong>{node.allocatedSize === undefined ? 'Unknown' : `${node.type === 'directory' && node.allocationUnknownFiles ? '≥ ' : ''}${formatBytes(node.allocatedSize)}`}</strong></div>
+          {!!node.allocationUnknownFiles && <p className="scan-freshness">Allocation or file identity unavailable for {formatNumber(node.allocationUnknownFiles)} file(s). Folder totals include only verified allocation.</p>}
+          {!!node.hardlinkCount && <p className="scan-freshness">{node.hardlinkCount} names in this scan share this file. Folder allocation is counted at {node.allocationOwner}. Removing one name may free no data.</p>}
+          {node.type === 'directory' && <div className="inspector-row"><span>Items</span><strong>{formatNumber(node.itemCount ?? node.children?.length ?? 0)}</strong></div>}
+          {node.modified !== undefined && <div className="inspector-row"><span>Modified</span><strong>{new Date(node.modified).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</strong></div>}
+          <div className="inspector-row"><span>Status</span><strong>{node.status === 'skipped' ? 'Not included' : node.status === 'error' ? 'Couldn’t read' : node.childrenLoaded === false ? isScanning ? 'Still scanning' : 'Incomplete' : node.status === 'partial' ? 'Partially scanned' : 'Analyzed'}</strong></div>
+        </div>
+        <p className="text-[10px] text-[#8196b2] mb-2">LOCATION</p>
+        <p className="inspector-path">{node.path}</p>
+        {result?.source === 'snapshot' && <p className="scan-freshness">Saved metadata is read-only. Previews and Explorer show the file currently at this path.</p>}
+        {node.skipReason && <p className="text-[11px] text-amber-300/80 mt-3">{node.skipReason}</p>}
+        <div className="inspector-actions">
+          <button className="button button-secondary" onClick={() => void openInExplorer(node)}><FolderOpen size={15} />Open in Explorer</button>
+          <button className="button button-quiet" onClick={() => copyPath(node)}><Copy size={14} />Copy path</button>
+          {node.type === 'file' && <button className="button button-quiet" onClick={() => setShowPreview(!showPreview)} aria-expanded={showPreview}><Eye size={14} />{showPreview ? 'Hide preview' : 'Preview file'}</button>}
+          <button className="button danger-action" disabled={!canDelete} title={!canDelete ? 'Available for fully scanned items after scanning finishes' : 'Move this item to the Recycle Bin'} onClick={async () => { if (await deleteItem(node)) setSelectedNode(null) }}><Trash2 size={14} />Move to Recycle Bin</button>
+        </div>
+        <div className="review-note"><strong><Info size={13} />{SAFETY_META[level].label}</strong><p>{getSafetyNote(node)}</p></div>
+        {showPreview && node.type === 'file' && <div className="mt-5"><PreviewPanel node={node} /></div>}
+      </div>
+    </aside>
   )
 }

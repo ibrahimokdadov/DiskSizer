@@ -1,30 +1,23 @@
 # DiskSizer
 
-> A fast Windows disk space analyzer that visualizes storage usage with interactive sunburst and treemap charts.
+> A Windows disk space explorer with global file search, previews, allocation accounting, visual maps, and saved scans.
 
-DiskSizer is an Electron 28 desktop application for Windows that helps users understand what is consuming disk space across their drives. It provides two interactive D3-powered chart types: a sunburst chart showing hierarchical directory structure as concentric rings, and a treemap showing directories and files as proportionally-sized rectangles. Both charts support drill-down navigation — click to enter a directory, press Escape to go back up.
+Current version: 1.1.0. Download the Windows x64 ZIP, extract it, and run DiskSizer.exe. Windows 10 or 11 is required. The build is unsigned.
 
-The scanner is engineered for real-world performance. An IMF-style (In-Memory First) batch-64 architecture keeps 64 directory read requests in flight simultaneously, eliminating the idle gap between I/O completions that plagues sequential scanners. On HDDs specifically, a native C++ N-API addon uses the Windows API FindFirstFileExW to read file sizes directly from directory entries — completely eliminating the per-file stat() syscall overhead. Drive type is auto-detected via WMI, so the right scanner is selected automatically. Benchmarks show 1.18x faster performance on 3M-file trees, 1.92x faster on smaller directories, and 73% lower heap allocation.
+Find files by name, category, and modification age. Logical and on-disk sizes are separate; folder allocation deduplicates known file identities. Unknown allocation is reported explicitly. Allocation is not a guarantee of reclaimable space.
 
-Additional features include a live scan progress overlay (files accumulate in real time), a file details panel showing size, type, modified date and full path, a right-click context menu for opening files in Explorer or deleting them, and a session-map that persists scan results across restarts.
+Scans save automatically to disk. Saved scans are dated and read-only; rescan before deleting files. Previews read the current file at the stored path. Saved databases consume disk space until removed.
 
-## Key pages
+A native Windows metadata cursor and a separate SQLite-backed scan helper keep records off the JavaScript heap. Persistent indexing adds disk usage and write time. MFT acceleration, USN refresh, and snapshot comparison are not implemented.
 
-- /: Main landing page with feature overview and performance benchmarks
+Repeated version 1.1.0 test-folder scans of 14,950 files and 1,895 directories took 2.197, 2.188, and 2.100 seconds, including allocation metadata and indexing but excluding discovery and final UI rendering. Cold-cache conditions were not controlled. No competitive speed advantage has been measured.
 
-## Requirements
+## Links
 
-- Windows 10 or 11
-- Node.js + VS2019 Build Tools + Python (for building the native C++ addon)
+- Website: https://disksizer.whhite.com/
+- Source: https://github.com/ibrahimokdadov/DiskSizer
+- Download and release notes: https://github.com/ibrahimokdadov/DiskSizer/releases/tag/v1.1.0
+- Measurements: https://github.com/ibrahimokdadov/DiskSizer/blob/master/docs/plans/2026-11-03-adopted-priorities.md
+- Issues: https://github.com/ibrahimokdadov/DiskSizer/issues
 
-## Tech stack
-
-- Electron 28, React 18, D3 v7, Zustand, TypeScript, Tailwind CSS, electron-vite
-
-## Contact
-
-ibrahim@whhite.com
-
-## Source
-
-https://github.com/ibrahimokdadov/windowsDiskV
+No project license has been selected. The repository is public, but an open-source license is not currently granted.

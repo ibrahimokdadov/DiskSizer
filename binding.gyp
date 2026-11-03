@@ -9,7 +9,12 @@
         "msvs_settings": {
           "VCCLCompilerTool": {
             "ExceptionHandling": 0,
-            "AdditionalOptions": ["/std:c++17"]
+            "AdditionalOptions": ["/std:c++17"],
+            "WholeProgramOptimization": "false"
+          },
+          "VCLinkerTool": {
+            "GenerateDebugInformation": "false",
+            "AdditionalOptions": ["/DEBUG:NONE", "/LTCG:OFF"]
           }
         }
       }]

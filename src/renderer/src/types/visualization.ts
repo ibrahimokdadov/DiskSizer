@@ -1,6 +1,6 @@
 import type { FileNode } from './scan'
 
-export type ViewMode = 'treemap' | 'sunburst'
+export type ViewMode = 'list' | 'treemap' | 'sunburst'
 
 export interface VisualizationNode {
   data: FileNode

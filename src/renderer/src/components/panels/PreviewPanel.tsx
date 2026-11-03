@@ -13,12 +13,15 @@ export function PreviewPanel({ node }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let active = true
     setLoading(true)
+    setPreview(null)
     setError(null)
     ipc.getFilePreview(node.path)
-      .then(setPreview)
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false))
+      .then(result => { if (active) setPreview(result) })
+      .catch(err => { if (active) setError(err.message) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
   }, [node.path])
 
   if (loading) {
@@ -40,8 +43,9 @@ export function PreviewPanel({ node }: Props) {
       return (
         <div className="rounded-lg overflow-hidden border border-gray-700">
           <img
-            src={`file:///${preview.filePath?.replace(/\\/g, '/')}`}
+            src={preview.url}
             alt={preview.name}
+            onError={() => setError('This image couldn’t be loaded. Try opening it in Explorer.')}
             className="w-full h-auto max-h-64 object-contain bg-black/50"
           />
         </div>
@@ -60,8 +64,9 @@ export function PreviewPanel({ node }: Props) {
       return (
         <div className="rounded-lg overflow-hidden border border-gray-700">
           <video
-            src={`file:///${preview.filePath?.replace(/\\/g, '/')}`}
+            src={preview.url}
             controls
+            onError={() => setError('This video couldn’t be played. Try opening it in Explorer.')}
             className="w-full max-h-48"
           />
         </div>
@@ -71,8 +76,9 @@ export function PreviewPanel({ node }: Props) {
       return (
         <div className="rounded-lg border border-gray-700 p-3">
           <audio
-            src={`file:///${preview.filePath?.replace(/\\/g, '/')}`}
+            src={preview.url}
             controls
+            onError={() => setError('This audio couldn’t be played. Try opening it in Explorer.')}
             className="w-full"
           />
         </div>

@@ -1,244 +1,90 @@
-<p align="center">
-  <img src="./resources/banner.svg" alt="DiskSizer banner" width="100%"/>
-</p>
-
 # DiskSizer
 
-A fast Windows disk space analyzer. Visualize what's eating your disk with interactive sunburst and treemap charts, file drill-down, and a scanner tuned for real-world performance on multi-million-file trees.
+A Windows disk-space explorer with a largest-first file list, file previews, allocation accounting, and saved scans.
 
----
+[Website](https://disksizer.whhite.com/) · [Download v1.1.0 for Windows x64](https://github.com/ibrahimokdadov/DiskSizer/releases/tag/v1.1.0) · [Report an issue](https://github.com/ibrahimokdadov/DiskSizer/issues)
 
-## Features
+## Download
 
-- **Sunburst & Treemap** — D3-powered interactive charts. Click to drill in, Esc to go up.
-- **Live scan progress** — files and sizes accumulate in real time with a progress overlay.
-- **File details panel** — size, type, modified date, full path.
-- **Right-click context menu** — open in Explorer, delete, preview file contents.
-- **Keyboard navigation** — `Enter` to drill in, `Esc` to navigate up.
-- **IMF-style scanner** — batch-64 architecture inspired by disk-based nearest-neighbor research. 1.18× faster on large trees, 1.92× faster on smaller directories, 73% less heap.
-- **HDD-aware native scanner** — auto-detects drive type via WMI; on HDDs uses a native C++ addon (`FindFirstFileExW`) that returns file sizes from directory entries directly — eliminating all per-file `stat()` syscalls. On SSDs uses the IMF-style scanner with unlimited parallelism.
+Download the Windows x64 ZIP from the release page, extract the entire archive, and run **DiskSizer.exe**. Windows 10 or 11 is required. This build is unsigned. The release includes a SHA-256 checksum. Source and build instructions are also available below.
 
----
+DiskSizer was previously named DiskVision internally. Existing application IDs, the user-data directory and the .diskvision saved-scan format remain compatible. No project license has been selected yet; public source availability does not grant an open-source license.
 
-## Stack
+## Use
 
-| Layer | Tech |
-|---|---|
-| Shell | Electron 28 |
-| UI | React 18 + Tailwind CSS |
-| Charts | D3 v7 |
-| State | Zustand |
-| Build | electron-vite |
-| Language | TypeScript |
+Choose a drive or folder. Results appear while scanning, and the scan index retains every discovered item. Choose **This folder** or **All scanned files** to find the largest files across the scan. Filter by name, file category, or modification age, sort by logical size or **On disk**, and use the arrow or double-click to open a folder. The list loads one page from the index at a time; the map groups smaller items into an explicit summary without removing them from the list.
 
----
+Single-click selects an item and opens its inspector. `Enter` opens a focused folder, `Alt+Up` goes to its parent, and `Esc` closes the selection or menu. Stop keeps partial results and clearly identifies unfinished folders. Rescan refreshes the current location.
 
-## Getting Started
+**File size means logical bytes**. **On disk** shows measured allocation. Folder allocation counts each known file identity once across the scan, attributed to its lexicographically first path; each hardlink still shows its own logical and allocated size. Unknown allocation/identity is counted explicitly and omitted from the known folder total (shown as a lower bound). Neither measure is a guarantee of reclaimable space. Volume capacity/free space is queried separately. Hardlinks, sparse/compressed files, filesystem metadata, cloud content, and inaccessible locations can make these quantities differ. Moving files to the Recycle Bin does not necessarily free drive space immediately.
 
-```bash
+**Saved scans:** results are saved automatically in the application user-data `scans` directory. Use **Open scan** to browse those dated files, or **Save copy** to choose another location. Reopened scans are dated and read-only; rescan before deleting anything. Previews read the file currently at the saved path. Saved databases consume disk space and are retained until you manage them in Windows.
+
+## Develop
+
+```sh
 npm install
-npm run build:native  # compile C++ addon (requires VS2019 Build Tools + Python)
-npm run dev           # launch in dev mode with hot-reload
-npm run build:win     # build Windows installer (includes native addon)
+npm run build:native
+npm run dev
 ```
 
----
+The N-API addon builds against pinned Node 20.11.1 headers compatible with the packaged Electron runtime. Packaging includes the N-API SQLite binary without an ABI rebuild. The native build requires Windows C++ Build Tools, a Windows SDK, and Python compatible with node-gyp. A missing or outdated addon automatically selects the standard scanner. No administrator access is required for normal scans; inaccessible locations remain visible as partial coverage.
 
-## Scanner Architecture & Benchmarking
-
-### Background — the research paper
-
-The scanner optimization was inspired by a SIGIR '25 paper:
-**"Highly Efficient Disk-based Nearest Neighbor Search on Extended Neighborhood Graph"** (XN-Graph).
-
-The paper studies disk-based vector search (finding nearest neighbors when data doesn't fit in RAM), but its core I/O model translates directly to any disk-heavy workload:
-
-```
-T_total = T_CPU + T_req + T_trans
+```sh
+npm run typecheck
+npm test
+npm run build
+npm run build:unpack
+npm run build:win
 ```
 
-Where `T_req` = I/O request overhead (number of syscalls) and `T_trans` = data transfer time.
-On real disks, `T_req` and `T_trans` dominate — CPU is almost always waiting on I/O, not the other way around.
+The build includes TypeScript checking. `build:unpack` creates an unsigned runnable app directory and skips executable resource editing, so local packaging does not require Windows symbolic-link privileges for the signing tools. `build:win` creates an installer using the normal signing/resource-editing pipeline. Packaging explicitly includes and unpacks the native addon.
 
-The paper's key insight — **"In-Memory First" (IMF)**: instead of issuing one I/O request and waiting, keep a pool of requests always in flight. While one result comes back and is processed, the next N requests are already pending. This eliminates the idle gap between I/O completions.
+## Scanner
 
-### Applying IMF to a directory scanner
+- The native cursor uses `GetFileInformationByHandleEx` directory batches containing logical length, allocation and file identity. It returns at most 256 entries at a time. Unsupported providers fall back to Win32 enumeration with metadata queries; sparse/compressed files receive targeted allocation queries. The portable reader streams at most 128 entries and reports unknown Windows allocation.
+- Native volume discovery returns mount paths, filesystem type, availability, volume identity, and capacity/free space. A timed PowerShell query is a compatibility fallback. Scanner startup no longer depends on an HDD/SSD query.
+- A separate Electron utility process owns scanning and the index. A fatal scanner error is reported without terminating the app window. The production queue, file records, sorting and shared-identity index live in SQLite with bounded cache settings. Directory traversal is currently sequential, with bounded asynchronous batches.
+- Progress carries a bounded root preview with an explicit aggregate for omitted items. Completion sends a shallow summary; folder pages are fetched on demand. The full tree is never copied into the main process or renderer. Scan IDs isolate old, cancelled, and replacement scans.
+- The production helper does not retain the full file tree in JavaScript memory. SQLite stores the authoritative records and returns only the requested page. The legacy tree/compact benchmark APIs remain available for regression comparisons.
+- Win32 errors are reported. Unicode, long paths, and ordinary `$` folders are retained. Links/junctions are excluded to avoid loops; unavailable cloud directories are reported instead of deliberately recalled.
+- The app distinguishes complete, partial, stopped, pending, skipped, and unreadable states. Unloaded folders cannot be mistaken for empty completed folders.
 
-The original scanner processed entries in sequential batches of 20:
+Completed results persist on disk after the helper exits. Storage grows with the file count; disk-backed indexing trades additional disk space and write time for bounded retained memory. Normal Stop commits partial results; a forced Stop returns a bounded preview and may leave an incomplete database that cannot be reopened. Active database/journal files are excluded from their own scan. Database failures surface as errors. Direct MFT scanning, automatic USN reconciliation, and snapshot comparison remain future milestones.
 
-```
-readdir(A) → wait for all 20 → process 20 → readdir next 20 → wait → ...
-```
+Local lifecycle/scan diagnostics are stored under the application's user-data `logs` directory. Native crash reports are collected locally with uploading disabled.
 
-If one slow subdirectory is in a batch of 20, the other 19 slots go idle waiting for it.
-The more subdirectories per batch, the more pronounced this "head-of-line blocking" gets.
+## Verification
 
-The IMF approach: increase the batch size so more I/O ops are always in flight, reducing the idle gap at each batch boundary.
+The regression suite covers full/deep tree retention, Unicode and `$` names, global concurrency, error reporting, cancellation during reads, scan replacement, junction loops, state isolation, navigation, and deletion accounting. It uses temporary fixtures and does not delete user data.
 
-### What we tried
+The optional Electron smoke check exercises the real built renderer, preload, worker, native addon, pagination, treemap, navigation, and media protocol against generated files. It writes screenshots under ignored `.qa/` and cleans up its temporary fixtures:
 
-**Attempt 1 — Semaphore (32 concurrent I/O slots)**
-
-A `Semaphore` class was implemented that keeps exactly 32 I/O operations in flight at all times. Every `readdir` and `stat` call went through it:
-
-```
-sem.run(() => fs.readdir(...))
-sem.run(() => fs.stat(...))
+```sh
+npm run build
+node tests/electron-smoke.cjs
 ```
 
-Result on 3M files: **39% slower** than the original. Root cause: at 3M+ files, the semaphore adds ~7 million microtask callbacks (acquire + release per file). The overhead of scheduling those microtasks cost more than the I/O saturation gained.
+The packaged executable has its own integration check, covering repeated scans, UI pagination, Stop, helper-failure recovery, idle responsiveness, and normal exit. Run it after packaging:
 
-**Attempt 2 — Unbounded fan-out (all entries at once)**
-
-Removed the batch loop entirely — `entries.map(entry => processEntry(...))` — letting all entries run concurrently with the semaphore as the only throttle.
-
-Result: **hung indefinitely** on `node_modules`-heavy trees. A directory with thousands of subdirectories spawned thousands of concurrent recursive calls. Each held a pending Promise while waiting for its subtree to resolve, exhausting memory.
-
-**Attempt 3 — Semaphore deadlock**
-
-Added a second `scanSem` (128 slots) to limit concurrent `scanDirectory` calls. This caused a classic **recursive semaphore deadlock**: outer `processEntry` holds a slot waiting for inner `scanDirectory`, which needs slots for its own `processEntry` calls — all 128 slots are held by callers waiting for their callees.
-
-**Final approach — batch-64, adaptive semaphore**
-
-Kept the batch loop, tripled the batch size from 20 → 64. The semaphore was removed for SSDs (OS I/O scheduler is sufficient), but added back at low concurrency for HDDs:
-
-```ts
-for (let i = 0; i < entries.length; i += 64) {
-  const batch = entries.slice(i, i + 64)
-  await Promise.allSettled(batch.map(entry => processEntry(...)))
-}
+```sh
+node tests/packaged-smoke.cjs
 ```
 
-**SSD:** no semaphore — random access is ~100× cheaper, parallelism wins.
-**HDD:** routes to the native scanner (see below) — no `stat()` calls at all.
+Set `DISKVISION_SMOKE_FAULT=1` to include deliberate scanner-process termination and recovery. The test uses a disposable profile and generated files; an additional real drive/folder scan requires an explicit `DISKVISION_SMOKE_TARGET` value and has time/file-count limits. `DISKVISION_SMOKE_EXPECT_FULL_SCAN=1` requires traversal to finish without a manual or memory-limit stop and checks deep file paths through the actual UI. `DISKVISION_SMOKE_EXPECT_MEMORY_LIMIT=1` is retained only for testing older builds with the in-memory heap guard; it does not apply to the SQLite backend.
 
-Drive type is detected at scan start via PowerShell WMI (`Get-PhysicalDisk | MediaType`) and the scanner is selected transparently — no user configuration needed.
+Media previews use scoped URLs with renderer sandboxing and web security enabled. Production builds include a content policy; the development server retains its hot-reload support.
 
-### Native HDD scanner — `FindFirstFileExW`
+## Benchmark
 
-The root cause of HDD slowness is `fs.stat()` per file. Each call is a random disk seek (~10ms). For a directory with 1000 files: 1001 I/O ops.
-
-The native scanner uses `FindFirstFileExW` with `FIND_FIRST_EX_LARGE_FETCH` + `FindExInfoBasic` (Windows `kernel32.dll`). `WIN32_FIND_DATA` already contains `nFileSizeLow`/`nFileSizeHigh` — so we get the size of every file in the same call that lists the directory. No `stat()` needed.
-
-For a directory with 1000 files: **1001 I/O ops → 1 bulk directory read.**
-
-The addon is a small N-API C++ file (`native/fast-readdir.cpp`) that runs on the libuv thread pool (non-blocking). Compiled with VS2019 via `node-gyp`.
-
-### Benchmark results
-
-Run it yourself:
-
-```bash
-npm run benchmark -- "C:/path/to/scan"
+```sh
+npm run benchmark:storage -- "C:/path/to/stable/folder" 3
+# Legacy logical-only tree scanners:
+npm run benchmark -- "C:/path/to/stable/folder" 5
 ```
 
-**Full user directory — `C:/Users/<you>` (3M files, 457K dirs, warm cache)**
+The storage benchmark includes metadata collection, SQLite writes and finalization under Node. It samples process RSS/heap and reports database size; it excludes Electron and UI costs. The legacy harness warms both engines, alternates execution order, repeats measurements, and refuses to compare speed when file/byte/error/exclusion counts differ. It includes Unicode filenames and does not suppress unhandled rejections. Timings exclude discovery, IPC, and rendering. Sampled RSS is process-wide, not isolated per-engine memory, and the comparison is not a cold-cache whole-drive benchmark.
 
-```
-────────────────────────────────────────────────────────────────────────────────
-Metric                    Original       Fast (IMF)    Improvement
-────────────────────────────────────────────────────────────────────────────────
-Scan time (s)               81.14s         68.76s      1.18× faster
-Throughput (files/s)        37,526         44,286       +18%
-Heap delta (MB)             256.9           69.2       −73%
-Errors                          2               4
-────────────────────────────────────────────────────────────────────────────────
-```
+The research and original findings are recorded in `docs/reviews/2026-10-31-scan-performance-review.md`. That review describes the pre-change defects and the longer-term MFT/USN design; this README describes the implemented version. The large-scan crash diagnosis and recovery evidence are recorded in `docs/reviews/2026-10-31-large-scan-crash.md`.
 
-**Downloads folder (12K files, 2.5K dirs)**
-
-```
-────────────────────────────────────────────────────────────────────────────────
-Metric                    Original       Fast (IMF)    Improvement
-────────────────────────────────────────────────────────────────────────────────
-Scan time (s)                0.37s          0.19s      1.92× faster
-Throughput (files/s)        33,087         63,614       +92%
-Heap delta (MB)               4.5            7.9
-────────────────────────────────────────────────────────────────────────────────
-```
-
-The gain is larger on smaller trees because batch boundaries represent a higher fraction of total work — less "time in batch" means the idle gap at each boundary matters more.
-
-### Other optimizations in the fast scanner
-
-**Eliminated `fs.realpath()` per directory**
-
-The original scanner called `fs.realpath()` on every directory to detect symlink loops:
-
-```ts
-// original — one extra syscall per directory
-const realPath = await fs.realpath(dirPath)
-if (visited.has(realPath)) return
-visited.add(realPath)
-```
-
-The fast scanner uses `Dirent.isSymbolicLink()` instead, which comes for free from the `readdir` call and requires no extra I/O:
-
-```ts
-// fast — zero extra syscall
-if (entry.isSymbolicLink()) return null
-```
-
-On 457K directories, this alone eliminates 457K `realpath` syscalls.
-
----
-
-## Windows-specific finding: Node.js 20 emoji filename bug
-
-During benchmarking, we hit an unusual Node.js 20 bug on Windows.
-
-**The symptom:** `try/catch` around `await fs.lstat(path)` was NOT catching `ENOENT` errors for certain files — the rejection escaped as an unhandled Promise rejection and crashed the process. This happened with both `ts-node` and `tsx`, and in compiled JS output.
-
-**Root cause:** Files with emoji in their names (e.g. `🔥 some file .md`) contain surrogate-pair Unicode code points. On Windows, Node.js's `pathModule.toNamespacedPath()` (which converts paths to `\\?\` prefix form for long-path support) crashes on surrogate-pair characters. This synchronous crash is caught and rejects the Promise. BUT Node.js has already dispatched an async libuv I/O operation with the corrupted path — and that operation resolves later with `ENOENT` as an **orphaned, uncatchable Promise rejection**.
-
-**Fix applied in `benchmark/run.ts`:**
-
-```ts
-// Skip filenames with surrogate-pair characters (emoji outside BMP).
-// Node.js 20 on Windows leaks an orphaned libuv ENOENT for these paths
-// that escapes try/catch entirely — a Node.js bug.
-const SURROGATE_RE = /[\uD800-\uDFFF]/
-
-if (SURROGATE_RE.test(entry.name)) return null
-
-// Suppress the leaked orphaned rejection at the process level
-process.on('unhandledRejection', () => { /* Node.js 20 Windows emoji-path bug */ })
-```
-
----
-
-## Project Structure
-
-```
-src/
-  main/
-    scanner-fast.ts       # IMF-style scanner — used for SSDs
-    scanner-native.ts     # native FindFirstFileExW scanner — used for HDDs
-    ipc-handlers.ts       # Electron IPC bridge (picks scanner per drive type)
-    drive-info.ts         # drive enumeration + HDD/SSD detection via WMI
-    file-actions.ts       # delete, open, preview
-native/
-  fast-readdir.cpp        # C++ N-API addon (FindFirstFileExW, returns sizes w/o stat)
-  preload/
-    index.ts
-    types.ts
-  renderer/src/           # React frontend
-    App.tsx
-    components/
-      layout/             Header, Sidebar, StatusBar
-      visualization/      SunburstChart, TreemapChart, ChartContainer, Breadcrumb, Tooltip
-      panels/             DetailsPanel, ScanProgress
-      common/             ContextMenu
-    hooks/                useScanner, useVisualization, useFileActions, useContextMenu
-    store/                scan-store.ts, ui-store.ts  (Zustand)
-    lib/                  format.ts, colors.ts, file-types.ts, ipc.ts
-    types/                scan.ts, visualization.ts, electron.d.ts
-benchmark/
-  run.ts                  # standalone benchmark harness (no Electron dependency)
-resources/
-  banner.svg              # README banner
-```
-
----
-
-by [@ibrahimokdadov](https://github.com/ibrahimokdadov)
+Version 1.1.0 implementation status, validation, measured storage/latency tradeoffs and the MFT decision gate are documented in [the adopted priorities](docs/plans/2026-11-03-adopted-priorities.md).

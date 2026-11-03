@@ -7,3 +7,6 @@ dist/
 .DS_Store
 $CLAUDE_ENV_FILE
 benchmark/run.cjs
+.qa/
+build/
+*.stackdump

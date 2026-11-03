@@ -8,7 +8,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/main/index.ts')
+          index: resolve(__dirname, 'src/main/index.ts'),
+          'scanner-worker': resolve(__dirname, 'src/main/scanner-worker.ts')
         }
       }
     }
@@ -32,7 +33,18 @@ export default defineConfig({
         }
       }
     },
-    plugins: [react()],
+    plugins: [react(), {
+      name: 'production-content-policy',
+      apply: 'build',
+      transformIndexHtml: () => [{
+        tag: 'meta',
+        attrs: {
+          'http-equiv': 'Content-Security-Policy',
+          content: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: diskvision-media:; media-src diskvision-media:; connect-src 'self'; object-src 'none'; base-uri 'self'"
+        },
+        injectTo: 'head'
+      }]
+    }],
     css: {
       postcss: resolve(__dirname, 'postcss.config.js')
     }

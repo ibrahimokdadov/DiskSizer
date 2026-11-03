@@ -1,1 +1,1 @@
-export type { FileNode, ScanResult, ScanProgress, DriveInfo, FilePreview } from '../../../preload/types'
+export type { FileNode, ScanResult, ScanProgress, ScanError, DriveInfo, FilePreview, DirectoryPage, DirectoryPageRequest } from '../../../preload/types'
